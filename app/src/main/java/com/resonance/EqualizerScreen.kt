@@ -127,14 +127,9 @@ fun EqualizerScreen(onBack: () -> Unit) {
         prefs.edit().putBoolean(AudioPrefs.K_ENABLED, v).apply()
     }
 
-    val bg = Brush.verticalGradient(listOf(Color(0xFF0F1A2E), Color(0xFF05080F), Color.Black))
-
     Column(
         Modifier
             .fillMaxSize()
-            .background(bg)
-            .statusBarsPadding()
-            .navigationBarsPadding()
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 16.dp)
     ) {

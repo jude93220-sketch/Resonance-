@@ -9,6 +9,7 @@ import android.os.Handler
 import android.os.Looper
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
+import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
@@ -54,6 +55,12 @@ class PlaybackService : MediaSessionService(), SharedPreferences.OnSharedPrefere
         exo.addListener(object : Player.Listener {
             override fun onAudioSessionIdChanged(audioSessionId: Int) {
                 setupEffects(audioSessionId)
+            }
+
+            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                // counts plays for the "Most Played" list
+                val id = mediaItem?.mediaId?.toLongOrNull()
+                if (id != null) PlayStats.increment(this@PlaybackService, id)
             }
         })
 

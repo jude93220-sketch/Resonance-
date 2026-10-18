@@ -1,48 +1,32 @@
 package com.resonance
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Album
+import androidx.compose.material.icons.filled.Category
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.GraphicEq
-import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Shuffle
-import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -53,228 +37,172 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-private enum class LibTab(val label: String) {
-    SONGS("Songs"),
+enum class GroupKind(val title: String) {
+    FOLDERS("Folders"),
     ALBUMS("Albums"),
     ARTISTS("Artists"),
-    FOLDERS("Folders"),
-    LIKED("Liked"),
+    ALBUM_ARTISTS("Album Artists"),
+    GENRES("Genres"),
+    YEARS("Years"),
+    COMPOSERS("Composers"),
 }
 
-private data class Group(
+class Group(
     val key: String,
     val title: String,
     val subtitle: String,
     val songs: List<Song>,
     val icon: ImageVector,
+    val showArt: Boolean = false,
 )
 
-@Composable
-fun LibraryScreen(
-    songs: List<Song>,
-    loading: Boolean,
-    current: Song?,
-    isPlaying: Boolean,
-    likedIds: Set<Long>,
-    onPlay: (List<Song>, Int) -> Unit,
-    onShuffleAll: (List<Song>) -> Unit,
-    onOpenPlayer: () -> Unit,
-    onPlayPause: () -> Unit,
-    onNext: () -> Unit,
-    onOpenEq: () -> Unit,
-    onRescan: () -> Unit,
-) {
-    var tab by remember { mutableStateOf(LibTab.SONGS) }
-    var query by remember { mutableStateOf("") }
-    var detail by remember { mutableStateOf<Group?>(null) }
+class HomeEntry(
+    val title: String,
+    val icon: ImageVector,
+    val color: Color,
+    val badge: String?,
+    val onClick: () -> Unit,
+)
 
-    BackHandler(enabled = detail != null) { detail = null }
+fun groupIcon(kind: GroupKind): ImageVector = when (kind) {
+    GroupKind.FOLDERS -> Icons.Filled.Folder
+    GroupKind.ALBUMS -> Icons.Filled.Album
+    GroupKind.ARTISTS -> Icons.Filled.Mic
+    GroupKind.ALBUM_ARTISTS -> Icons.Filled.Mic
+    GroupKind.GENRES -> Icons.Filled.Category
+    GroupKind.YEARS -> Icons.Filled.DateRange
+    GroupKind.COMPOSERS -> Icons.Filled.Person
+}
 
-    val filtered = remember(songs, query) {
-        if (query.isBlank()) songs
-        else songs.filter {
-            it.title.contains(query, ignoreCase = true) ||
-                it.artist.contains(query, ignoreCase = true) ||
-                it.album.contains(query, ignoreCase = true)
-        }
-    }
-    val albums = remember(filtered) {
-        filtered.groupBy { it.album }.map { (name, list) ->
-            val sorted = list.sortedWith(compareBy({ it.trackNumber }, { it.title.lowercase() }))
-            Group("album:$name", name, "${sorted.first().artist} • ${list.size} songs", sorted, Icons.Filled.Album)
-        }.sortedBy { it.title.lowercase() }
-    }
-    val artists = remember(filtered) {
-        filtered.groupBy { it.artist }.map { (name, list) ->
-            Group("artist:$name", name, "${list.size} songs", list, Icons.Filled.Person)
-        }.sortedBy { it.title.lowercase() }
-    }
-    val folders = remember(filtered) {
-        filtered.groupBy { it.folder }.map { (path, list) ->
+private fun countText(n: Int) = if (n == 1) "1 song" else "$n songs"
+
+fun buildGroups(kind: GroupKind, songs: List<Song>): List<Group> {
+    val icon = groupIcon(kind)
+    return when (kind) {
+        GroupKind.FOLDERS -> songs.groupBy { it.folder }.map { entry ->
             Group(
-                "folder:$path",
-                path.substringAfterLast('/').ifBlank { "/" },
-                "${list.size} songs • $path",
-                list,
-                Icons.Filled.Folder,
+                "f:${entry.key}",
+                entry.key.substringAfterLast('/').ifBlank { "/" },
+                "${countText(entry.value.size)} • ${entry.key}",
+                entry.value,
+                icon,
             )
         }.sortedBy { it.title.lowercase() }
-    }
-    val liked = remember(filtered, likedIds) { filtered.filter { it.id in likedIds } }
 
-    Column(
-        Modifier
-            .fillMaxSize()
-            .background(Color.Black)
-            .statusBarsPadding()
-            .navigationBarsPadding()
-    ) {
-        val d = detail
-        if (d != null) {
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .height(56.dp)
-                    .padding(horizontal = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                IconButton(onClick = { detail = null }) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Color.White)
-                }
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        d.title, color = Color.White, fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        d.subtitle, color = Color(0xFF9A9A9A), fontSize = 12.sp,
-                        maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                IconButton(onClick = { onShuffleAll(d.songs) }) {
-                    Icon(Icons.Filled.Shuffle, "Shuffle", tint = Color.White)
+        GroupKind.ALBUMS -> songs.groupBy { it.album }.map { entry ->
+            val sorted = entry.value.sortedWith(
+                compareBy<Song>({ it.trackNumber }, { it.title.lowercase() })
+            )
+            Group(
+                "al:${entry.key}",
+                entry.key,
+                "${sorted.first().artist} • ${countText(sorted.size)}",
+                sorted,
+                icon,
+                showArt = true,
+            )
+        }.sortedBy { it.title.lowercase() }
+
+        GroupKind.ARTISTS -> songs.groupBy { it.artist }.map { entry ->
+            Group("ar:${entry.key}", entry.key, countText(entry.value.size), entry.value, icon)
+        }.sortedBy { it.title.lowercase() }
+
+        GroupKind.ALBUM_ARTISTS -> songs.groupBy { it.albumArtist }.map { entry ->
+            Group("aa:${entry.key}", entry.key, countText(entry.value.size), entry.value, icon)
+        }.sortedBy { it.title.lowercase() }
+
+        GroupKind.GENRES -> songs.groupBy { it.genre.ifBlank { "Unknown genre" } }.map { entry ->
+            Group("g:${entry.key}", entry.key, countText(entry.value.size), entry.value, icon)
+        }.sortedBy { it.title.lowercase() }
+
+        GroupKind.YEARS -> songs.groupBy { it.year }.map { entry ->
+            Group(
+                "y:${entry.key}",
+                if (entry.key > 0) entry.key.toString() else "Unknown year",
+                countText(entry.value.size),
+                entry.value,
+                icon,
+            )
+        }.sortedByDescending { it.title }
+
+        GroupKind.COMPOSERS -> songs.groupBy { it.composer.ifBlank { "Unknown composer" } }.map { entry ->
+            Group("c:${entry.key}", entry.key, countText(entry.value.size), entry.value, icon)
+        }.sortedBy { it.title.lowercase() }
+    }
+}
+
+/** Longest folder path shared by all songs (the starting point of "Folders Hierarchy"). */
+fun commonRoot(songs: List<Song>): String {
+    val folders = songs.map { it.folder }.distinct()
+    if (folders.isEmpty()) return ""
+    var prefix = folders.first().split('/')
+    for (f in folders) {
+        val parts = f.split('/')
+        var i = 0
+        while (i < prefix.size && i < parts.size && prefix[i] == parts[i]) i++
+        prefix = prefix.take(i)
+    }
+    return prefix.joinToString("/")
+}
+
+@Composable
+fun LibraryHome(entries: List<HomeEntry>) {
+    Column(Modifier.fillMaxSize()) {
+        Text(
+            "Library",
+            color = Color.White,
+            fontSize = 34.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(start = 24.dp, top = 20.dp, bottom = 12.dp),
+        )
+        LazyColumn(Modifier.fillMaxSize()) {
+            itemsIndexed(entries) { _, entry ->
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable(onClick = entry.onClick)
+                        .padding(horizontal = 20.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(
+                        Modifier.size(56.dp).clip(CircleShape).background(entry.color),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(entry.icon, null, tint = Color.White.copy(alpha = 0.92f), modifier = Modifier.size(28.dp))
+                    }
+                    Spacer(Modifier.width(18.dp))
+                    Text(entry.title, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                    if (entry.badge != null) {
+                        Spacer(Modifier.width(12.dp))
+                        Text(entry.badge, color = Color(0xFFD0D0D0), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    }
                 }
             }
-            Box(Modifier.weight(1f).fillMaxWidth()) {
-                SongList(d.songs, current, onPlay)
+        }
+    }
+}
+
+@Composable
+fun GroupsScreen(title: String, icon: ImageVector, groups: List<Group>, onBack: () -> Unit, onOpen: (Group) -> Unit) {
+    Column(Modifier.fillMaxSize()) {
+        LibraryPill(onBack)
+        TitleRow(title, icon)
+        if (groups.isEmpty()) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("Nothing here yet", color = Color(0xFF9A9A9A), fontSize = 15.sp)
             }
         } else {
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .height(56.dp)
-                    .padding(start = 20.dp, end = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    "Resonance", color = Color.White, fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f),
-                )
-                IconButton(onClick = { onShuffleAll(filtered) }) {
-                    Icon(Icons.Filled.Shuffle, "Shuffle all", tint = Color.White)
-                }
-                IconButton(onClick = onOpenEq) {
-                    Icon(Icons.Filled.GraphicEq, "Equalizer", tint = Color.White)
-                }
-                IconButton(onClick = onRescan) {
-                    Icon(Icons.Filled.Refresh, "Rescan", tint = Color.White)
+            LazyColumn(Modifier.fillMaxSize()) {
+                itemsIndexed(groups, key = { _, g -> g.key }) { _, g ->
+                    GroupRow(g) { onOpen(g) }
                 }
             }
-
-            TextField(
-                value = query,
-                onValueChange = { query = it },
-                singleLine = true,
-                placeholder = { Text("Search songs, artists, albums", color = Color(0xFF8A8A8A)) },
-                leadingIcon = { Icon(Icons.Filled.Search, null, tint = Color(0xFF8A8A8A)) },
-                shape = RoundedCornerShape(50),
-                colors = TextFieldDefaults.colors(
-                    focusedContainerColor = PillGrey,
-                    unfocusedContainerColor = PillGrey,
-                    focusedIndicatorColor = Color.Transparent,
-                    unfocusedIndicatorColor = Color.Transparent,
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White,
-                    cursorColor = Accent,
-                ),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-            )
-
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                LibTab.values().forEach { t ->
-                    val selected = t == tab
-                    Box(
-                        Modifier
-                            .clip(RoundedCornerShape(50))
-                            .background(if (selected) Accent else PillGrey)
-                            .clickable { tab = t }
-                            .padding(horizontal = 16.dp, vertical = 8.dp)
-                    ) {
-                        Text(
-                            t.label,
-                            color = if (selected) Color.Black else Color.White,
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 14.sp,
-                        )
-                    }
-                }
-            }
-
-            Box(Modifier.weight(1f).fillMaxWidth()) {
-                when {
-                    loading -> CenterText("Scanning your music…")
-                    songs.isEmpty() -> CenterText("No music found on this device")
-                    else -> when (tab) {
-                        LibTab.SONGS -> SongList(filtered, current, onPlay)
-                        LibTab.ALBUMS -> GroupList(albums) { detail = it }
-                        LibTab.ARTISTS -> GroupList(artists) { detail = it }
-                        LibTab.FOLDERS -> GroupList(folders) { detail = it }
-                        LibTab.LIKED -> if (liked.isEmpty()) {
-                            CenterText("Tap the thumbs-up on the player to like songs")
-                        } else {
-                            SongList(liked, current, onPlay)
-                        }
-                    }
-                }
-            }
-        }
-
-        if (current != null) {
-            MiniPlayer(current, isPlaying, onOpenPlayer, onPlayPause, onNext)
         }
     }
 }
 
 @Composable
-private fun CenterText(text: String) {
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text(text, color = Color(0xFF9A9A9A), fontSize = 15.sp)
-    }
-}
-
-@Composable
-private fun SongList(list: List<Song>, current: Song?, onPlay: (List<Song>, Int) -> Unit) {
-    if (list.isEmpty()) {
-        CenterText("No results")
-        return
-    }
-    LazyColumn(Modifier.fillMaxSize()) {
-        itemsIndexed(list, key = { _, s -> s.id }) { index, song ->
-            SongRow(song, song.id == current?.id) { onPlay(list, index) }
-        }
-    }
-}
-
-@Composable
-private fun SongRow(song: Song, isCurrent: Boolean, onClick: () -> Unit) {
+private fun GroupRow(g: Group, onClick: () -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
@@ -282,105 +210,75 @@ private fun SongRow(song: Song, isCurrent: Boolean, onClick: () -> Unit) {
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        AlbumArt(song, 128, Modifier.size(48.dp).clip(RoundedCornerShape(8.dp)))
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text(
-                song.title,
-                color = if (isCurrent) Accent else Color.White,
-                fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                "${song.artist} • ${song.album}",
-                color = Color(0xFF9A9A9A), fontSize = 13.sp,
-                maxLines = 1, overflow = TextOverflow.Ellipsis,
-            )
-        }
-        Spacer(Modifier.width(8.dp))
-        Text(formatTime(song.duration), color = Color(0xFF9A9A9A), fontSize = 12.sp)
-    }
-}
-
-@Composable
-private fun GroupList(groups: List<Group>, onOpen: (Group) -> Unit) {
-    if (groups.isEmpty()) {
-        CenterText("No results")
-        return
-    }
-    LazyColumn(Modifier.fillMaxSize()) {
-        itemsIndexed(groups, key = { _, g -> g.key }) { _, g ->
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .clickable { onOpen(g) }
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
+        if (g.showArt && g.songs.isNotEmpty()) {
+            AlbumArt(g.songs.first(), 128, Modifier.size(56.dp).clip(RoundedCornerShape(10.dp)))
+        } else {
+            Box(
+                Modifier.size(56.dp).clip(RoundedCornerShape(10.dp)).background(Color(0x33FFFFFF)),
+                contentAlignment = Alignment.Center,
             ) {
-                if (g.icon == Icons.Filled.Album) {
-                    AlbumArt(g.songs.first(), 128, Modifier.size(52.dp).clip(RoundedCornerShape(8.dp)))
-                } else {
-                    Box(
-                        Modifier
-                            .size(52.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(PillGrey),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(g.icon, null, tint = Color.White.copy(alpha = 0.7f))
-                    }
-                }
-                Spacer(Modifier.width(12.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        g.title, color = Color.White, fontSize = 16.sp,
-                        maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        g.subtitle, color = Color(0xFF9A9A9A), fontSize = 13.sp,
-                        maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    )
-                }
+                Icon(g.icon, null, tint = Color.White.copy(alpha = 0.8f))
             }
         }
-    }
-}
-
-@Composable
-private fun MiniPlayer(
-    song: Song,
-    isPlaying: Boolean,
-    onOpen: () -> Unit,
-    onPlayPause: () -> Unit,
-    onNext: () -> Unit,
-) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .background(Color(0xFF111111))
-            .clickable(onClick = onOpen)
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        AlbumArt(song, 128, Modifier.size(44.dp).clip(RoundedCornerShape(8.dp)))
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
             Text(
-                song.title, color = Color.White, fontSize = 15.sp,
-                fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                g.title, color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.SemiBold,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
             Text(
-                song.artist, color = Color(0xFF9A9A9A), fontSize = 12.sp,
+                g.subtitle, color = Color(0xFFD0D0D0), fontSize = 13.sp,
                 maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
         }
-        IconButton(onClick = onPlayPause) {
-            Icon(
-                if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                "Play or pause", tint = Color.White,
-            )
-        }
-        IconButton(onClick = onNext) {
-            Icon(Icons.Filled.SkipNext, "Next", tint = Color.White)
+    }
+}
+
+/** Folder-by-folder browsing: sub-folders first, then the songs inside this folder. */
+@Composable
+fun FolderTreeScreen(
+    path: String,
+    allSongs: List<Song>,
+    current: Song?,
+    onBack: () -> Unit,
+    onOpenFolder: (String) -> Unit,
+    onPlay: (List<Song>, Int) -> Unit,
+    onSongMenu: (Song) -> Unit,
+) {
+    val subfolders = remember(path, allSongs) {
+        allSongs.filter { it.folder.startsWith("$path/") }
+            .groupBy { it.folder.removePrefix("$path/").substringBefore('/') }
+            .map { entry ->
+                Group(
+                    "$path/${entry.key}",
+                    entry.key,
+                    countText(entry.value.size),
+                    entry.value,
+                    Icons.Filled.Folder,
+                )
+            }
+            .sortedBy { it.title.lowercase() }
+    }
+    val here = remember(path, allSongs) {
+        allSongs.filter { it.folder == path }.sortedBy { it.title.lowercase() }
+    }
+
+    Column(Modifier.fillMaxSize()) {
+        LibraryPill(onBack)
+        TitleRow(path.substringAfterLast('/').ifBlank { "Folders" }, Icons.Filled.FolderOpen)
+        LazyColumn(Modifier.fillMaxSize()) {
+            itemsIndexed(subfolders, key = { _, g -> g.key }) { _, g ->
+                GroupRow(g) { onOpenFolder(g.key) }
+            }
+            itemsIndexed(here, key = { _, s -> "s${s.id}" }) { index, song ->
+                SongRow(
+                    song = song,
+                    isCurrent = song.id == current?.id,
+                    selected = null,
+                    onTap = { onPlay(here, index) },
+                    onLong = { onSongMenu(song) },
+                )
+            }
         }
     }
 }

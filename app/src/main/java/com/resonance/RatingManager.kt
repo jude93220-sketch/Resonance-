@@ -22,9 +22,13 @@ object RatingManager {
         prefs(context).edit().putBoolean("dislike_$songId", disliked).apply()
     }
 
-    fun likedIds(context: Context): Set<Long> =
+    private fun idsWithPrefix(context: Context, prefix: String): Set<Long> =
         prefs(context).all
-            .filter { (key, value) -> key.startsWith("like_") && value == true }
-            .mapNotNull { (key, _) -> key.removePrefix("like_").toLongOrNull() }
+            .filter { entry -> entry.key.startsWith(prefix) && entry.value == true }
+            .mapNotNull { entry -> entry.key.removePrefix(prefix).toLongOrNull() }
             .toSet()
+
+    fun likedIds(context: Context): Set<Long> = idsWithPrefix(context, "like_")
+
+    fun dislikedIds(context: Context): Set<Long> = idsWithPrefix(context, "dislike_")
 }

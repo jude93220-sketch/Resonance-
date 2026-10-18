@@ -2,11 +2,18 @@ package com.resonance
 
 import android.content.ContentUris
 import android.content.Context
+import android.database.Cursor
 import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
 
 object MusicScanner {
+
+    private fun text(c: Cursor, index: Int): String? =
+        if (index >= 0 && !c.isNull(index)) c.getString(index) else null
+
+    private fun clean(value: String?, fallback: String): String =
+        value?.takeIf { it.isNotBlank() && it != "<unknown>" } ?: fallback
 
     @Suppress("DEPRECATION")
     fun getSongs(context: Context): List<Song> {
@@ -17,7 +24,7 @@ object MusicScanner {
             MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
         }
 
-        val projection = arrayOf(
+        val columns = arrayListOf(
             MediaStore.Audio.Media._ID,
             MediaStore.Audio.Media.TITLE,
             MediaStore.Audio.Media.ARTIST,
@@ -27,41 +34,61 @@ object MusicScanner {
             MediaStore.Audio.Media.DATA,
             MediaStore.Audio.Media.TRACK,
             MediaStore.Audio.Media.MIME_TYPE,
+            MediaStore.Audio.Media.YEAR,
+            MediaStore.Audio.Media.COMPOSER,
+            MediaStore.Audio.Media.DATE_ADDED,
         )
+        val hasGenre = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
+        if (hasGenre) {
+            columns.add(MediaStore.Audio.Media.GENRE)
+            columns.add(MediaStore.Audio.Media.ALBUM_ARTIST)
+        }
+
         val selection =
             "${MediaStore.Audio.Media.IS_MUSIC} != 0 AND ${MediaStore.Audio.Media.DURATION} >= 15000"
         val sort = "${MediaStore.Audio.Media.TITLE} COLLATE NOCASE ASC"
 
-        context.contentResolver.query(collection, projection, selection, null, sort)?.use { c ->
+        context.contentResolver.query(
+            collection, columns.toTypedArray(), selection, null, sort
+        )?.use { c ->
             val idCol = c.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
-            val titleCol = c.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
-            val artistCol = c.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
-            val albumCol = c.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
-            val albumIdCol = c.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
-            val durCol = c.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
-            val dataCol = c.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
-            val trackCol = c.getColumnIndexOrThrow(MediaStore.Audio.Media.TRACK)
-            val mimeCol = c.getColumnIndexOrThrow(MediaStore.Audio.Media.MIME_TYPE)
+            val titleCol = c.getColumnIndex(MediaStore.Audio.Media.TITLE)
+            val artistCol = c.getColumnIndex(MediaStore.Audio.Media.ARTIST)
+            val albumCol = c.getColumnIndex(MediaStore.Audio.Media.ALBUM)
+            val albumIdCol = c.getColumnIndex(MediaStore.Audio.Media.ALBUM_ID)
+            val durCol = c.getColumnIndex(MediaStore.Audio.Media.DURATION)
+            val dataCol = c.getColumnIndex(MediaStore.Audio.Media.DATA)
+            val trackCol = c.getColumnIndex(MediaStore.Audio.Media.TRACK)
+            val mimeCol = c.getColumnIndex(MediaStore.Audio.Media.MIME_TYPE)
+            val yearCol = c.getColumnIndex(MediaStore.Audio.Media.YEAR)
+            val composerCol = c.getColumnIndex(MediaStore.Audio.Media.COMPOSER)
+            val addedCol = c.getColumnIndex(MediaStore.Audio.Media.DATE_ADDED)
+            val genreCol = if (hasGenre) c.getColumnIndex(MediaStore.Audio.Media.GENRE) else -1
+            val albumArtistCol =
+                if (hasGenre) c.getColumnIndex(MediaStore.Audio.Media.ALBUM_ARTIST) else -1
 
             while (c.moveToNext()) {
                 val id = c.getLong(idCol)
-                val artist = c.getString(artistCol)?.takeIf { it.isNotBlank() && it != "<unknown>" }
-                    ?: "Unknown artist"
-                val album = c.getString(albumCol)?.takeIf { it.isNotBlank() && it != "<unknown>" }
-                    ?: "Unknown album"
-                val path = c.getString(dataCol) ?: ""
+                val path = text(c, dataCol) ?: ""
+                val artist = clean(text(c, artistCol), "Unknown artist")
                 songs.add(
                     Song(
                         id = id,
-                        title = c.getString(titleCol)?.takeIf { it.isNotBlank() } ?: "Unknown",
+                        title = clean(text(c, titleCol), "Unknown"),
                         artist = artist,
-                        album = album,
-                        albumId = c.getLong(albumIdCol),
-                        duration = c.getLong(durCol),
+                        album = clean(text(c, albumCol), "Unknown album"),
+                        albumId = if (albumIdCol >= 0) c.getLong(albumIdCol) else 0L,
+                        duration = if (durCol >= 0) c.getLong(durCol) else 0L,
                         uri = ContentUris.withAppendedId(collection, id),
+                        path = path,
                         folder = path.substringBeforeLast('/', ""),
-                        trackNumber = c.getInt(trackCol) % 1000,
-                        mime = c.getString(mimeCol) ?: "",
+                        trackNumber = if (trackCol >= 0) c.getInt(trackCol) % 1000 else 0,
+                        mime = text(c, mimeCol) ?: "",
+                        year = if (yearCol >= 0) c.getInt(yearCol) else 0,
+                        genre = clean(text(c, genreCol), ""),
+                        composer = clean(text(c, composerCol), ""),
+                        albumArtist = clean(text(c, albumArtistCol), artist),
+                        dateAdded = if (addedCol >= 0) c.getLong(addedCol) else 0L,
                     )
                 )
             }

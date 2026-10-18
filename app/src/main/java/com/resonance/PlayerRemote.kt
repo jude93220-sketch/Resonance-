@@ -14,6 +14,7 @@ import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
+import androidx.media3.common.Timeline
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.google.common.util.concurrent.ListenableFuture
@@ -59,6 +60,12 @@ class PlayerRemote(private val appContext: Context) {
         private set
     var durationMs by mutableLongStateOf(0L)
         private set
+    var currentIndex by mutableIntStateOf(0)
+        private set
+    var queueSize by mutableIntStateOf(0)
+        private set
+    var queueVersion by mutableIntStateOf(0)
+        private set
 
     private val listener = object : Player.Listener {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -67,7 +74,14 @@ class PlayerRemote(private val appContext: Context) {
 
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
             currentId = mediaItem?.mediaId?.toLongOrNull() ?: -1L
+            controller?.let { currentIndex = it.currentMediaItemIndex }
             refreshPosition()
+        }
+
+        override fun onTimelineChanged(timeline: Timeline, reason: Int) {
+            queueSize = timeline.windowCount
+            queueVersion++
+            controller?.let { currentIndex = it.currentMediaItemIndex }
         }
 
         override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
@@ -81,25 +95,32 @@ class PlayerRemote(private val appContext: Context) {
 
     fun connect() {
         if (future != null) return
-        val token = SessionToken(appContext, ComponentName(appContext, PlaybackService::class.java))
-        val f = MediaController.Builder(appContext, token).buildAsync()
-        future = f
-        f.addListener({
-            try {
-                val c = f.get()
-                controller = c
-                c.addListener(listener)
-                isPlaying = c.isPlaying
-                currentId = c.currentMediaItem?.mediaId?.toLongOrNull() ?: -1L
-                shuffle = c.shuffleModeEnabled
-                repeatMode = c.repeatMode
-                refreshPosition()
-                pending?.invoke()
-                pending = null
-            } catch (t: Throwable) {
-                // service could not be reached; UI keeps working, playback just won't start
-            }
-        }, ContextCompat.getMainExecutor(appContext))
+        try {
+            val token = SessionToken(appContext, ComponentName(appContext, PlaybackService::class.java))
+            val f = MediaController.Builder(appContext, token).buildAsync()
+            future = f
+            f.addListener({
+                try {
+                    val c = f.get()
+                    controller = c
+                    c.addListener(listener)
+                    isPlaying = c.isPlaying
+                    currentId = c.currentMediaItem?.mediaId?.toLongOrNull() ?: -1L
+                    shuffle = c.shuffleModeEnabled
+                    repeatMode = c.repeatMode
+                    queueSize = c.mediaItemCount
+                    currentIndex = c.currentMediaItemIndex
+                    queueVersion++
+                    refreshPosition()
+                    pending?.invoke()
+                    pending = null
+                } catch (t: Throwable) {
+                    // service could not be reached; UI keeps working, playback just won't start
+                }
+            }, ContextCompat.getMainExecutor(appContext))
+        } catch (t: Throwable) {
+            future = null
+        }
     }
 
     fun disconnect() {
@@ -144,6 +165,49 @@ class PlayerRemote(private val appContext: Context) {
             c.play()
         }
     }
+
+    fun playNext(songs: List<Song>) {
+        if (songs.isEmpty()) return
+        val items = songs.map { it.toMediaItem() }
+        withController { c ->
+            if (c.mediaItemCount == 0) {
+                c.setMediaItems(items)
+                c.prepare()
+                c.play()
+            } else {
+                c.addMediaItems(c.currentMediaItemIndex + 1, items)
+            }
+        }
+    }
+
+    fun addToQueue(songs: List<Song>) {
+        if (songs.isEmpty()) return
+        val items = songs.map { it.toMediaItem() }
+        withController { c ->
+            val wasEmpty = c.mediaItemCount == 0
+            c.addMediaItems(items)
+            if (wasEmpty) {
+                c.prepare()
+                c.play()
+            }
+        }
+    }
+
+    fun queueIds(): List<Long> {
+        val c = controller ?: return emptyList()
+        val ids = ArrayList<Long>()
+        for (i in 0 until c.mediaItemCount) {
+            ids.add(c.getMediaItemAt(i).mediaId.toLongOrNull() ?: -1L)
+        }
+        return ids
+    }
+
+    fun jumpTo(index: Int) = withController {
+        it.seekTo(index, 0L)
+        it.play()
+    }
+
+    fun removeAt(index: Int) = withController { it.removeMediaItem(index) }
 
     fun togglePlayPause() = withController { c ->
         if (c.isPlaying) c.pause() else c.play()

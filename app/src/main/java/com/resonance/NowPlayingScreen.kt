@@ -14,18 +14,15 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material.icons.filled.FastRewind
-import androidx.compose.material.icons.filled.GraphicEq
-import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Repeat
@@ -39,6 +36,7 @@ import androidx.compose.material.icons.outlined.ThumbUp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -48,7 +46,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
@@ -66,20 +63,9 @@ import kotlin.random.Random
 
 private val VisualizerPlayed = Color.White
 private val VisualizerRest = Color.White.copy(alpha = 0.3f)
+private val PillDark = Color(0x66000000)
 
-private fun formatLabel(mime: String): String {
-    val m = mime.lowercase()
-    return when {
-        m.isBlank() -> "AUDIO"
-        m.contains("mpeg") -> "MP3"
-        m.contains("flac") -> "FLAC"
-        m.contains("mp4") || m.contains("m4a") || m.contains("aac") -> "M4A / AAC"
-        m.contains("ogg") || m.contains("opus") -> "OGG / OPUS"
-        m.contains("wav") -> "WAV"
-        else -> m.substringAfter("/").uppercase()
-    }
-}
-
+/** The full player. The coloured background and the bottom bar come from the app shell. */
 @Composable
 fun NowPlayingScreen(
     song: Song,
@@ -96,15 +82,16 @@ fun NowPlayingScreen(
     onSkipBy: (Long) -> Unit,
     onToggleShuffle: () -> Unit,
     onCycleRepeat: () -> Unit,
-    onOpenEq: () -> Unit,
     onOpenSleep: () -> Unit,
+    onMore: () -> Unit,
     onRatingChanged: () -> Unit,
-    onBack: () -> Unit,
 ) {
     val context = LocalContext.current
 
     var isLiked by remember(song.id) { mutableStateOf(RatingManager.isLiked(context, song.id)) }
     var isDisliked by remember(song.id) { mutableStateOf(RatingManager.isDisliked(context, song.id)) }
+    var formatText by remember(song.id) { mutableStateOf("") }
+    LaunchedEffect(song.id) { formatText = AudioInfo.label(context, song) }
 
     val progress = if (durationMs > 0) (positionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f) else 0f
     var dragFraction by remember { mutableStateOf<Float?>(null) }
@@ -118,44 +105,28 @@ fun NowPlayingScreen(
         List(240) { i -> 0.2f + abs(sin(i * 0.5f)) * 0.6f + Random(seed * 31 + i).nextFloat() * 0.2f }
     }
 
-    val bgBrush = Brush.verticalGradient(
-        colors = listOf(Color(0xFF0F1A2E), Color(0xFF05080F), Color.Black)
-    )
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 16.dp)
+    ) {
+        Spacer(Modifier.weight(0.5f))
 
-    Box(modifier = Modifier.fillMaxSize().background(bgBrush)) {
-        Column(
+        ArtCard(
+            song = song,
             modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding()
-                .navigationBarsPadding()
-                .padding(horizontal = 16.dp)
+                .fillMaxWidth()
+                .aspectRatio(1.75f)
+                .clip(RoundedCornerShape(28.dp)),
+        )
+
+        Spacer(Modifier.weight(0.4f))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth().height(56.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    Icons.Filled.KeyboardArrowDown, "Back", tint = Color.White,
-                    modifier = Modifier.size(32.dp).clickable { onBack() }
-                )
-                Spacer(Modifier.weight(1f))
-            }
-
-            Spacer(Modifier.weight(1f))
-
-            AlbumArt(
-                song = song,
-                px = 1024,
-                modifier = Modifier
-                    .fillMaxWidth(0.85f)
-                    .aspectRatio(1f)
-                    .align(Alignment.CenterHorizontally)
-                    .clip(RoundedCornerShape(16.dp)),
-                iconSize = 100.dp,
-            )
-
-            Spacer(Modifier.weight(1f))
-
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 PillIconButton(
                     icon = Icons.Outlined.ThumbUp,
@@ -188,146 +159,156 @@ fun NowPlayingScreen(
                     }
                 )
             }
+            PillIconButton(Icons.Filled.MoreVert, "More", width = 56.dp, onClick = onMore)
+        }
 
-            Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(14.dp))
 
-            InfoPill(text = song.title, fontSize = 20.sp, weight = FontWeight.Bold)
-            Spacer(Modifier.height(8.dp))
-            InfoPill(text = song.artist, fontSize = 15.sp, weight = FontWeight.Medium)
+        InfoPill(text = song.title, fontSize = 20.sp, weight = FontWeight.Bold)
+        Spacer(Modifier.height(8.dp))
+        InfoPill(text = "${song.artist} - ${song.album}", fontSize = 15.sp, weight = FontWeight.Medium)
 
-            Spacer(Modifier.height(20.dp))
+        Spacer(Modifier.height(16.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            PillIconButton(
+                Icons.Filled.Timer, "Sleep timer", width = 64.dp,
+                tint = if (sleepActive) Accent else Color.White, onClick = onOpenSleep
+            )
+            Spacer(Modifier.weight(1f))
+            PillIconButton(
+                if (repeatMode == Player.REPEAT_MODE_ONE) Icons.Filled.RepeatOne else Icons.Filled.Repeat,
+                "Repeat", width = 64.dp,
+                tint = if (repeatMode != Player.REPEAT_MODE_OFF) Accent else Color.White,
+                onClick = onCycleRepeat
+            )
+            Spacer(Modifier.width(8.dp))
+            PillIconButton(
+                Icons.Filled.Shuffle, "Shuffle", width = 64.dp,
+                tint = if (shuffle) Accent else Color.White, onClick = onToggleShuffle
+            )
+        }
+
+        Spacer(Modifier.weight(0.6f))
+
+        Box(
+            modifier = Modifier.fillMaxWidth().height(130.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Canvas(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .pointerInput(durationMs) {
+                        detectTapGestures { offset ->
+                            latestSeek((offset.x / size.width).coerceIn(0f, 1f))
+                        }
+                    }
+                    .pointerInput(durationMs) {
+                        detectHorizontalDragGestures(
+                            onDragStart = { offset ->
+                                dragFraction = (offset.x / size.width).coerceIn(0f, 1f)
+                            },
+                            onDragEnd = {
+                                dragFraction?.let { latestSeek(it) }
+                                dragFraction = null
+                            },
+                            onDragCancel = { dragFraction = null },
+                            onHorizontalDrag = { change, _ ->
+                                dragFraction = (change.position.x / size.width).coerceIn(0f, 1f)
+                            }
+                        )
+                    }
+            ) {
+                val barWidth = 6.dp.toPx()
+                val gap = 6.dp.toPx()
+                val numBars = (size.width / (barWidth + gap)).toInt()
+                val centerY = size.height / 2f
+                val playedX = size.width * shownProgress
+
+                for (i in 0 until numBars) {
+                    val barHeight = size.height * bars[i % bars.size]
+                    val x = i * (barWidth + gap) + barWidth / 2f
+                    val color = if (x < playedX) VisualizerPlayed else VisualizerRest
+                    drawLine(
+                        color = color,
+                        start = Offset(x, centerY - barHeight / 2),
+                        end = Offset(x, centerY + barHeight / 2),
+                        strokeWidth = barWidth
+                    )
+                }
+            }
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                PillIconButton(Icons.Filled.GraphicEq, "Equalizer", width = 64.dp, onClick = onOpenEq)
-                Spacer(Modifier.width(8.dp))
-                PillIconButton(
-                    Icons.Filled.Timer, "Sleep timer", width = 64.dp,
-                    tint = if (sleepActive) Accent else Color.White, onClick = onOpenSleep
-                )
-                Spacer(Modifier.weight(1f))
-                PillIconButton(
-                    if (repeatMode == Player.REPEAT_MODE_ONE) Icons.Filled.RepeatOne else Icons.Filled.Repeat,
-                    "Repeat", width = 64.dp,
-                    tint = if (repeatMode != Player.REPEAT_MODE_OFF) Accent else Color.White,
-                    onClick = onCycleRepeat
-                )
-                Spacer(Modifier.width(8.dp))
-                PillIconButton(
-                    Icons.Filled.Shuffle, "Shuffle", width = 64.dp,
-                    tint = if (shuffle) Accent else Color.White, onClick = onToggleShuffle
-                )
-            }
+                ControlButton(Icons.Filled.FastRewind, 26.dp) { onSkipBy(-10_000L) }
+                ControlButton(Icons.Filled.SkipPrevious, 30.dp) { onPrev() }
 
-            Spacer(Modifier.height(24.dp))
-
-            Box(
-                modifier = Modifier.fillMaxWidth().height(120.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Canvas(
+                Box(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .pointerInput(durationMs) {
-                            detectTapGestures { offset ->
-                                latestSeek((offset.x / size.width).coerceIn(0f, 1f))
-                            }
-                        }
-                        .pointerInput(durationMs) {
-                            detectHorizontalDragGestures(
-                                onDragStart = { offset ->
-                                    dragFraction = (offset.x / size.width).coerceIn(0f, 1f)
-                                },
-                                onDragEnd = {
-                                    dragFraction?.let { latestSeek(it) }
-                                    dragFraction = null
-                                },
-                                onDragCancel = { dragFraction = null },
-                                onHorizontalDrag = { change, _ ->
-                                    dragFraction = (change.position.x / size.width).coerceIn(0f, 1f)
-                                }
-                            )
-                        }
+                        .size(84.dp)
+                        .background(Color.Black, CircleShape)
+                        .clickable { onPlayPause() },
+                    contentAlignment = Alignment.Center
                 ) {
-                    val barWidth = 6.dp.toPx()
-                    val gap = 6.dp.toPx()
-                    val numBars = (size.width / (barWidth + gap)).toInt()
-                    val centerY = size.height / 2f
-                    val playedX = size.width * shownProgress
-
-                    for (i in 0 until numBars) {
-                        val barHeight = size.height * bars[i % bars.size]
-                        val x = i * (barWidth + gap) + barWidth / 2f
-                        val color = if (x < playedX) VisualizerPlayed else VisualizerRest
-                        drawLine(
-                            color = color,
-                            start = Offset(x, centerY - barHeight / 2),
-                            end = Offset(x, centerY + barHeight / 2),
-                            strokeWidth = barWidth
-                        )
-                    }
+                    Icon(
+                        if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                        "Play or pause",
+                        tint = Color.White,
+                        modifier = Modifier.size(50.dp)
+                    )
                 }
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    ControlButton(Icons.Filled.FastRewind, 28.dp) { onSkipBy(-10_000L) }
-                    ControlButton(Icons.Filled.SkipPrevious, 32.dp) { onPrev() }
-
-                    Box(
-                        modifier = Modifier
-                            .size(80.dp)
-                            .background(Color.Black, CircleShape)
-                            .clickable { onPlayPause() },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                            "Play or pause",
-                            tint = Color.White,
-                            modifier = Modifier.size(48.dp)
-                        )
-                    }
-
-                    ControlButton(Icons.Filled.SkipNext, 32.dp) { onNext() }
-                    ControlButton(Icons.Filled.FastForward, 28.dp) { onSkipBy(10_000L) }
-                }
+                ControlButton(Icons.Filled.SkipNext, 30.dp) { onNext() }
+                ControlButton(Icons.Filled.FastForward, 26.dp) { onSkipBy(10_000L) }
             }
+        }
 
-            Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(6.dp))
 
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(formatTime(shownElapsed), color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                Text(
-                    formatTime(if (durationMs > 0) durationMs else song.duration),
-                    color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold
-                )
-            }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            TimePill(formatTime(shownElapsed))
+            TimePill(formatTime(if (durationMs > 0) durationMs else song.duration))
+        }
 
-            Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(8.dp))
 
+        if (formatText.isNotBlank()) {
             Box(
                 modifier = Modifier
                     .align(Alignment.CenterHorizontally)
                     .clip(RoundedCornerShape(50))
-                    .background(PillGrey)
+                    .background(PillDark)
                     .padding(horizontal = 16.dp, vertical = 6.dp)
             ) {
                 Text(
-                    text = formatLabel(song.mime),
-                    color = Color(0xFFB0B0B0), fontSize = 11.sp, fontWeight = FontWeight.Bold
+                    text = formatText,
+                    color = Color(0xFFD0D0D0), fontSize = 11.sp, fontWeight = FontWeight.Bold
                 )
             }
-
-            Spacer(Modifier.height(16.dp))
         }
+
+        Spacer(Modifier.height(10.dp))
+    }
+}
+
+@Composable
+private fun TimePill(text: String) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(Color.Black)
+            .padding(horizontal = 12.dp, vertical = 5.dp)
+    ) {
+        Text(text, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -344,7 +325,7 @@ private fun PillIconButton(
             .width(width)
             .height(48.dp)
             .clip(RoundedCornerShape(50))
-            .background(PillGrey)
+            .background(PillDark)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
@@ -357,7 +338,7 @@ private fun InfoPill(text: String, fontSize: TextUnit, weight: FontWeight) {
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(50))
-            .background(PillGrey)
+            .background(PillDark)
             .padding(horizontal = 20.dp, vertical = 10.dp)
     ) {
         Text(
