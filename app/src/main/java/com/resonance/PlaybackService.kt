@@ -1,6 +1,8 @@
 package com.resonance
 
 import android.content.SharedPreferences
+import android.app.PendingIntent
+import android.content.Intent
 import android.media.audiofx.AudioEffect
 import android.media.audiofx.BassBoost
 import android.media.audiofx.DynamicsProcessing
@@ -97,10 +99,12 @@ class PlaybackService : MediaSessionService(), SharedPreferences.OnSharedPrefere
                 }
                 lastMediaId = newId
                 savePlaybackState()
+                notifyWidget()
             }
 
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 savePlaybackState()
+                notifyWidget()
             }
 
             override fun onPlaybackStateChanged(playbackState: Int) {
@@ -112,10 +116,21 @@ class PlaybackService : MediaSessionService(), SharedPreferences.OnSharedPrefere
                 reason: Int,
             ) {
                 savePlaybackState()
+                notifyWidget()
             }
         })
 
-        mediaSession = MediaSession.Builder(this, exo).build()
+        val sessionActivity = PendingIntent.getActivity(
+            this,
+            700,
+            Intent(this, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        mediaSession = MediaSession.Builder(this, exo)
+            .setSessionActivity(sessionActivity)
+            .build()
         restorePlaybackState(exo)
 
         setupEffects(exo.audioSessionId)
@@ -173,6 +188,10 @@ class PlaybackService : MediaSessionService(), SharedPreferences.OnSharedPrefere
             shuffle = exo.shuffleModeEnabled,
             repeatMode = exo.repeatMode,
         )
+    }
+
+    private fun notifyWidget() {
+        sendBroadcast(Intent(ResonanceWidget.ACTION_REFRESH).setPackage(packageName))
     }
 
     /**
