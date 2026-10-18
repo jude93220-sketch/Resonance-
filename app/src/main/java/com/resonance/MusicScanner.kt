@@ -45,7 +45,7 @@ object MusicScanner {
         }
 
         val selection =
-            "${MediaStore.Audio.Media.IS_MUSIC} != 0 AND ${MediaStore.Audio.Media.DURATION} >= 15000"
+            "${MediaStore.Audio.Media.IS_MUSIC} != 0 AND ${MediaStore.Audio.Media.DURATION} >= ${AppSettings.minTrackSeconds(context) * 1000L}"
         val sort = "${MediaStore.Audio.Media.TITLE} COLLATE NOCASE ASC"
 
         context.contentResolver.query(
