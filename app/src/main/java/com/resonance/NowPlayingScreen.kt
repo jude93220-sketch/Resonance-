@@ -1,47 +1,13 @@
 package com.resonance
 
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.background
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.BarChart
-import androidx.compose.material.icons.filled.FastForward
-import androidx.compose.material.icons.filled.FastRewind
-import androidx.compose.material.icons.filled.GridView
-import androidx.compose.material.icons.filled.GraphicEq
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Repeat
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Shuffle
-import androidx.compose.material.icons.filled.SkipNext
-import androidx.compose.material.icons.filled.SkipPrevious
-import androidx.compose.material.icons.filled.ThumbDown
-import androidx.compose.material.icons.filled.ThumbUp
-import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -52,22 +18,20 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.drawscope.clipRect
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.sin
+import kotlin.random.Random
 
 private val PillGrey = Color(0xFF1C1C1C)
-private val WaveBackdrop = Color(0xFF262626)
-private val VisualizerPlayed = Color(0xFFB8B8B8)
-private val VisualizerRest = Color(0xFF5A5A5A)
+private val VisualizerPlayed = Color.White
+private val VisualizerRest = Color.White.copy(alpha = 0.3f)
 
 @Composable
 fun NowPlayingScreen(
@@ -81,20 +45,22 @@ fun NowPlayingScreen(
     onMenu: () -> Unit = {},
 ) {
     var isPlaying by remember { mutableStateOf(false) }
-    var progress by remember { mutableStateOf(0.03f) }
+    var progress by remember { mutableStateOf(0.25f) }
+
+    // Simulating the deep blue gradient from the album art
+    val bgBrush = Brush.verticalGradient(
+        colors = listOf(
+            Color(0xFF0F1A2E), // Deep blue
+            Color(0xFF05080F), // Very dark
+            Color.Black
+        )
+    )
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black)
+            .background(bgBrush)
     ) {
-        BackgroundWaveform(
-            modifier = Modifier
-                .fillMaxWidth()
-                .fillMaxSize(0.5f)
-                .align(Alignment.TopCenter)
-        )
-
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -102,124 +68,180 @@ fun NowPlayingScreen(
                 .navigationBarsPadding()
                 .padding(horizontal = 16.dp)
         ) {
-            TopBar(onBack = onBack, onSearch = onSearch, onMenu = onMenu)
+            // Top bar
+            Row(
+                modifier = Modifier.fillMaxWidth().height(56.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.Filled.KeyboardArrowDown, "Back", tint = Color.White, modifier = Modifier.size(32.dp).clickable(onClick = onBack))
+                Spacer(Modifier.weight(1f))
+                Icon(Icons.Filled.Search, "Search", tint = Color.White, modifier = Modifier.clickable(onClick = onSearch))
+                Spacer(Modifier.width(16.dp))
+                Icon(Icons.Filled.MoreVert, "More", tint = Color.White, modifier = Modifier.clickable(onClick = onMenu))
+            }
 
-            Spacer(modifier = Modifier.weight(1f))
+            Spacer(Modifier.weight(1f))
 
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                PillIconButton(Icons.Filled.ThumbUp, "Like", width = 96.dp) {}
-                PillIconButton(Icons.Filled.ThumbDown, "Dislike", width = 96.dp) {}
+            // Album Art Placeholder (Looks like the image in your screenshot)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(0.85f)
+                    .aspectRatio(1f)
+                    .align(Alignment.CenterHorizontally)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Color(0xFF152238)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Filled.MusicNote, "Album Art", tint = Color.White.copy(alpha = 0.2f), modifier = Modifier.size(100.dp))
+            }
+
+            Spacer(Modifier.weight(1f))
+
+            // Thumbs & More
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    PillIconButton(Icons.Filled.ThumbUp, "Like", width = 64.dp) {}
+                    PillIconButton(Icons.Filled.ThumbDown, "Dislike", width = 64.dp) {}
+                }
+                PillIconButton(Icons.Filled.MoreVert, "More", width = 64.dp) {}
             }
 
             Spacer(Modifier.height(16.dp))
 
-            InfoPill(text = title, fontSize = 22.sp, weight = FontWeight.Bold)
+            // Title Pills
+            InfoPill(text = title, fontSize = 20.sp, weight = FontWeight.Bold)
             Spacer(Modifier.height(8.dp))
-            InfoPill(text = artist, fontSize = 17.sp, weight = FontWeight.SemiBold)
+            InfoPill(text = artist, fontSize = 15.sp, weight = FontWeight.Medium)
 
             Spacer(Modifier.height(20.dp))
 
+            // Utility Buttons
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                PillIconButton(Icons.Filled.GraphicEq, "Equalizer", width = 96.dp) {}
+                PillIconButton(Icons.Filled.GraphicEq, "EQ", width = 64.dp) {}
                 Spacer(Modifier.width(8.dp))
-                PillIconButton(Icons.Filled.Timer, "Sleep timer", width = 96.dp) {}
+                PillIconButton(Icons.Filled.Timer, "Timer", width = 64.dp) {}
                 Spacer(Modifier.weight(1f))
-                PillIconButton(Icons.Filled.Repeat, "Repeat", width = 96.dp) {}
+                PillIconButton(Icons.Filled.Repeat, "Repeat", width = 64.dp) {}
                 Spacer(Modifier.width(8.dp))
-                PillIconButton(Icons.Filled.Shuffle, "Shuffle", width = 96.dp) {}
+                PillIconButton(Icons.Filled.Shuffle, "Shuffle", width = 64.dp) {}
             }
 
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(24.dp))
 
-            VisualizerWithControls(
-                isPlaying = isPlaying,
-                progress = progress,
-                onSeek = { progress = it },
-                onPlayPause = { isPlaying = !isPlaying },
-            )
+            // Visualizer & Controls
+            Box(
+                modifier = Modifier.fillMaxWidth().height(120.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                // Distinct vertical bars (like Poweramp)
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    val barWidth = 6.dp.toPx()
+                    val gap = 6.dp.toPx()
+                    val numBars = (size.width / (barWidth + gap)).toInt()
+                    val centerY = size.height / 2f
+                    val playedX = size.width * progress
 
-            Spacer(Modifier.height(4.dp))
+                    for (i in 0 until numBars) {
+                        // Create a varied wave shape
+                        val heightFactor = 0.2f + (abs(sin(i * 0.5f)) * 0.6f) + (Random(i).nextFloat() * 0.2f)
+                        val barHeight = size.height * heightFactor
+                        val x = i * (barWidth + gap)
+
+                        val color = if (x < playedX) VisualizerPlayed else VisualizerRest
+
+                        drawLine(
+                            color = color,
+                            start = Offset(x, centerY - (barHeight / 2)),
+                            end = Offset(x, centerY + (barHeight / 2)),
+                            strokeWidth = barWidth
+                        )
+                    }
+                }
+
+                // Playback controls INSIDE black circles
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    ControlButton(Icons.Filled.FastRewind, 28.dp) { }
+                    ControlButton(Icons.Filled.SkipPrevious, 32.dp) { }
+                    // Large Play Button
+                    Box(
+                        modifier = Modifier
+                            .size(80.dp)
+                            .background(Color.Black, CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, "Play", tint = Color.White, modifier = Modifier.size(48.dp).clickable { isPlaying = !isPlaying })
+                    }
+                    ControlButton(Icons.Filled.SkipNext, 32.dp) { }
+                    ControlButton(Icons.Filled.FastForward, 28.dp) { }
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
 
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 4.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text(elapsed, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                Text(duration, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                Text(elapsed, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                Text(duration, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
             }
 
             Spacer(Modifier.height(12.dp))
 
+            // Format chip
             Box(
                 modifier = Modifier
                     .align(Alignment.CenterHorizontally)
                     .clip(RoundedCornerShape(50))
                     .background(PillGrey)
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .padding(horizontal = 16.dp, vertical = 6.dp)
             ) {
                 Text(
                     text = format,
                     color = Color(0xFFB0B0B0),
-                    fontSize = 12.sp,
+                    fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
-                    letterSpacing = 0.5.sp
                 )
             }
 
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(16.dp))
 
-            BottomNavPill()
+            // Bottom Nav
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(64.dp)
+                    .clip(RoundedCornerShape(50))
+                    .background(PillGrey)
+                    .padding(horizontal = 24.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                val tint = Color(0xFFBDBDBD)
+                Icon(Icons.Filled.GridView, "Library", tint = tint, modifier = Modifier.size(28.dp))
+                Icon(Icons.Filled.BarChart, "Stats", tint = tint, modifier = Modifier.size(28.dp))
+                Icon(Icons.Filled.Search, "Search", tint = tint, modifier = Modifier.size(28.dp))
+                Icon(Icons.Filled.Menu, "Menu", tint = Color.White, modifier = Modifier.size(28.dp))
+            }
 
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(16.dp))
         }
     }
 }
 
 @Composable
-private fun TopBar(onBack: () -> Unit, onSearch: () -> Unit, onMenu: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(56.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        BareIcon(Icons.Filled.KeyboardArrowDown, "Back", size = 32.dp, onClick = onBack)
-        Spacer(Modifier.weight(1f))
-        BareIcon(Icons.Filled.Search, "Search", onClick = onSearch)
-        BareIcon(Icons.Filled.MoreVert, "More", onClick = onMenu)
-    }
-}
-
-@Composable
-private fun BareIcon(
-    icon: ImageVector,
-    contentDescription: String,
-    size: androidx.compose.ui.unit.Dp = 26.dp,
-    onClick: () -> Unit,
-) {
-    Box(
-        modifier = Modifier
-            .size(48.dp)
-            .clip(RoundedCornerShape(50))
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(icon, contentDescription, tint = Color.White, modifier = Modifier.size(size))
-    }
-}
-
-@Composable
-private fun PillIconButton(
-    icon: ImageVector,
-    contentDescription: String,
-    width: androidx.compose.ui.unit.Dp,
-    onClick: () -> Unit,
-) {
+private fun PillIconButton(icon: androidx.compose.ui.graphics.vector.ImageVector, contentDescription: String, width: androidx.compose.ui.unit.Dp, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .width(width)
@@ -229,209 +251,31 @@ private fun PillIconButton(
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
-        Icon(icon, contentDescription, tint = Color.White, modifier = Modifier.size(24.dp))
+        Icon(icon, contentDescription, tint = Color.White, modifier = Modifier.size(22.dp))
     }
 }
 
 @Composable
-private fun InfoPill(
-    text: String,
-    fontSize: androidx.compose.ui.unit.TextUnit,
-    weight: FontWeight,
-) {
+private fun InfoPill(text: String, fontSize: androidx.compose.ui.unit.TextUnit, weight: FontWeight) {
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(50))
             .background(PillGrey)
-            .padding(horizontal = 24.dp, vertical = 10.dp)
+            .padding(horizontal = 20.dp, vertical = 10.dp)
     ) {
-        Text(
-            text = text,
-            color = Color.White,
-            fontSize = fontSize,
-            fontWeight = weight,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
+        Text(text = text, color = Color.White, fontSize = fontSize, fontWeight = weight, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
 @Composable
-private fun BackgroundWaveform(modifier: Modifier = Modifier) {
-    Canvas(modifier = modifier) {
-        val w = size.width
-        val h = size.height
-
-        val top = listOf(
-            0.07f to 0.62f, 0.15f to 0.38f, 0.20f to 0.50f,
-            0.29f to 0.30f, 0.37f to 0.52f, 0.49f to 0.24f,
-            0.61f to 0.68f, 0.73f to 0.00f, 0.95f to 0.88f,
-        )
-        val bottom = listOf(
-            0.94f to 0.90f, 0.61f to 0.82f, 0.50f to 0.44f,
-            0.37f to 0.66f, 0.27f to 0.45f, 0.20f to 0.62f,
-            0.15f to 0.52f, 0.07f to 0.64f,
-        )
-
-        val path = Path().apply {
-            moveTo(top.first().first * w, top.first().second * h)
-            top.drop(1).forEach { (x, y) -> lineTo(x * w, y * h) }
-            bottom.forEach { (x, y) -> lineTo(x * w, y * h) }
-            close()
-        }
-        drawPath(path, WaveBackdrop)
-    }
-}
-
-@Composable
-private fun VisualizerWithControls(
-    isPlaying: Boolean,
-    progress: Float,
-    onSeek: (Float) -> Unit,
-    onPlayPause: () -> Unit,
-) {
-    val transition = rememberInfiniteTransition(label = "wave")
-    val phase by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = (2 * PI).toFloat(),
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 2400, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "phase"
-    )
-    val livePhase = if (isPlaying) phase else 0f
-
+private fun ControlButton(icon: androidx.compose.ui.graphics.vector.ImageVector, size: androidx.compose.ui.unit.Dp, onClick: () -> Unit) {
     Box(
         modifier = Modifier
-            .fillMaxWidth()
-            .height(150.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val w = size.width
-            val h = size.height
-            val midY = h / 2f
-            val maxAmp = h / 2f
-            val steps = 160
-
-            fun amp(t: Float): Float {
-                val a = abs(sin(t * 9f + livePhase)) * 0.35f +
-                        abs(sin(t * 17f - livePhase * 1.3f)) * 0.25f +
-                        abs(sin(t * 4f + livePhase * 0.5f)) * 0.25f
-                val ramp = 0.35f + 0.65f * t
-                return (0.12f + a * ramp).coerceIn(0.08f, 1f) * maxAmp
-            }
-
-            val path = Path().apply {
-                moveTo(0f, midY - amp(0f))
-                for (i in 1..steps) {
-                    val t = i / steps.toFloat()
-                    val prevT = (i - 1) / steps.toFloat()
-                    val x = t * w
-                    val px = prevT * w
-                    val cx = (x + px) / 2f
-                    val cy = (midY - amp(t) + midY - amp(prevT)) / 2f
-                    quadraticBezierTo(px, midY - amp(prevT), cx, cy)
-                }
-                lineTo(w, midY - amp(1f))
-                lineTo(w, midY + amp(1f))
-                for (i in steps - 1 downTo 0) {
-                    val t = i / steps.toFloat()
-                    val nextT = (i + 1) / steps.toFloat()
-                    val x = t * w
-                    val nx = nextT * w
-                    val cx = (x + nx) / 2f
-                    val cy = (midY + amp(t) + midY + amp(nextT)) / 2f
-                    quadraticBezierTo(nx, midY + amp(nextT), cx, cy)
-                }
-                close()
-            }
-
-            val playedX = w * progress.coerceIn(0f, 1f)
-
-            clipRect(left = playedX, right = w) {
-                drawPath(path, VisualizerRest)
-            }
-            clipRect(left = 0f, right = playedX) {
-                drawPath(path, VisualizerPlayed)
-            }
-        }
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            TransportIcon(Icons.Filled.SkipPrevious, "Previous", 36.dp) { onSeek(0f) }
-            TransportIcon(Icons.Filled.FastRewind, "Rewind", 40.dp) {
-                onSeek((progress - 0.05f).coerceAtLeast(0f))
-            }
-            TransportIcon(
-                icon = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                contentDescription = if (isPlaying) "Pause" else "Play",
-                size = 64.dp,
-                onClick = onPlayPause
-            )
-            TransportIcon(Icons.Filled.FastForward, "Forward", 40.dp) {
-                onSeek((progress + 0.05f).coerceAtMost(1f))
-            }
-            TransportIcon(Icons.Filled.SkipNext, "Next", 36.dp) {}
-        }
-    }
-}
-
-@Composable
-private fun TransportIcon(
-    icon: ImageVector,
-    contentDescription: String,
-    size: androidx.compose.ui.unit.Dp,
-    onClick: () -> Unit,
-) {
-    Box(
-        modifier = Modifier
-            .size(size + 16.dp)
-            .clip(RoundedCornerShape(50))
+            .size(size + 24.dp)
+            .background(Color.Black, CircleShape)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = contentDescription,
-            tint = Color.White,
-            modifier = Modifier.size(size)
-        )
-    }
-}
-
-@Composable
-private fun BottomNavPill() {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(72.dp)
-            .clip(RoundedCornerShape(50))
-            .background(PillGrey)
-            .padding(horizontal = 24.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        val tint = Color(0xFFBDBDBD)
-        listOf(
-            Icons.Filled.GridView to "Library",
-            Icons.Filled.BarChart to "Stats",
-            Icons.Filled.Search to "Search",
-            Icons.Filled.Menu to "Menu",
-        ).forEach { (icon, desc) ->
-            Box(
-                modifier = Modifier
-                    .size(56.dp)
-                    .clip(RoundedCornerShape(50))
-                    .clickable { },
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(icon, desc, tint = tint, modifier = Modifier.size(32.dp))
-            }
-        }
+        Icon(icon, null, tint = Color.White, modifier = Modifier.size(size))
     }
 }
