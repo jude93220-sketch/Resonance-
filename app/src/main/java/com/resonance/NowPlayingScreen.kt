@@ -99,6 +99,8 @@ fun NowPlayingScreen(
     onCycleRepeat: () -> Unit,
     onOpenSleep: () -> Unit,
     onMore: () -> Unit,
+    onArtTap: () -> Unit,
+    onSwipeSection: (Int) -> Unit,
     onRatingChanged: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -158,6 +160,9 @@ fun NowPlayingScreen(
                             }
                         },
                     )
+                },
+                .pointerInput(song.id) {
+                    detectTapGestures(onTap = { onArtTap() })
                 },
             contentAlignment = Alignment.Center,
         ) {
@@ -220,7 +225,19 @@ fun NowPlayingScreen(
 
         Spacer(Modifier.height(14.dp))
 
-        InfoPill(text = song.title, fontSize = 20.sp, weight = FontWeight.Bold)
+        InfoPill(
+            text = song.title,
+            fontSize = 20.sp,
+            weight = FontWeight.Bold,
+            modifier = Modifier.pointerInput(song.id) {
+                var distance = 0f
+                detectHorizontalDragGestures(
+                    onDragStart = { distance = 0f },
+                    onHorizontalDrag = { change, amount -> distance += amount; change.consume() },
+                    onDragEnd = { if (abs(distance) >= 80f) onSwipeSection(if (distance < 0f) 1 else -1) },
+                )
+            },
+        )
         Spacer(Modifier.height(8.dp))
         InfoPill(text = "${song.artist} - ${song.album}", fontSize = 15.sp, weight = FontWeight.Medium)
 
@@ -409,9 +426,9 @@ private fun PillIconButton(
 }
 
 @Composable
-private fun InfoPill(text: String, fontSize: TextUnit, weight: FontWeight) {
+private fun InfoPill(text: String, fontSize: TextUnit, weight: FontWeight, modifier: Modifier = Modifier) {
     Box(
-        modifier = Modifier
+        modifier = modifier
             .clip(RoundedCornerShape(50))
             .background(PillDark)
             .padding(horizontal = 20.dp, vertical = 10.dp)

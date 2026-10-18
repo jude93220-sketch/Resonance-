@@ -106,6 +106,11 @@ private sealed interface Route {
     object Player : Route
 }
 
+private sealed interface PlaybackSource {
+    data object AllSongs : PlaybackSource
+    data class Folder(val path: String) : PlaybackSource
+}
+
 data class TagValues(val title: String, val artist: String, val album: String, val genre: String)
 
 @Composable
@@ -159,6 +164,8 @@ fun ResonanceApp(remote: PlayerRemote) {
     var folderMenuSong by remember { mutableStateOf<Song?>(null) }
     var settingsTick by remember { mutableIntStateOf(0) }
     var exportTarget by remember { mutableStateOf<Playlist?>(null) }
+    var playbackSource by remember { mutableStateOf<PlaybackSource>(PlaybackSource.AllSongs) }
+    var sectionPage by remember { mutableIntStateOf(0) }
     val smartPlaylists = remember(songs, settingsTick) {
         SmartPlaylistStore.all(context).map { rule ->
             Playlist(
@@ -292,8 +299,29 @@ fun ResonanceApp(remote: PlayerRemote) {
         Brush.verticalGradient(listOf(bgTint, lerp(bgTint, palette.background, bgGradient / 9f), palette.background))
     }
 
-    val playList: (List<Song>, Int) -> Unit = { list, index -> remote.playQueue(list, index) }
-    val shuffleList: (List<Song>) -> Unit = { list -> remote.playShuffled(list) }
+    fun capturePlaybackSource() {
+        playbackSource = if (route is Route.FolderTree) PlaybackSource.Folder(route.path) else PlaybackSource.AllSongs
+    }
+
+    fun goToPlaybackSource() {
+        when (val source = playbackSource) {
+            PlaybackSource.AllSongs -> reset(Route.Songs("All Songs", songs, Icons.Filled.MusicNote, alphabetical = true))
+            is PlaybackSource.Folder -> reset(Route.FolderTree(source.path))
+        }
+    }
+
+    fun swipeLibrarySection(direction: Int) {
+        sectionPage = (sectionPage + direction).mod(4)
+        when (sectionPage) {
+            0 -> reset(Route.Home)
+            1 -> reset(Route.Songs("All Songs", songs, Icons.Filled.MusicNote, alphabetical = true))
+            2 -> reset(Route.Groups(GroupKind.ALBUMS))
+            else -> reset(Route.Groups(GroupKind.ARTISTS))
+        }
+    }
+
+    val playList: (List<Song>, Int) -> Unit = { list, index -> capturePlaybackSource(); remote.playQueue(list, index) }
+    val shuffleList: (List<Song>) -> Unit = { list -> capturePlaybackSource(); remote.playShuffled(list) }
     val playNext: (List<Song>) -> Unit = { list ->
         remote.playNext(list)
         toast("Will play next")
@@ -507,6 +535,8 @@ fun ResonanceApp(remote: PlayerRemote) {
                         sleepEnd = sleepEnd,
                         onOpenSleep = { showSleep = true },
                         onMore = { showPlayerMenu = true },
+                        onArtTap = { goToPlaybackSource() },
+                        onSwipeSection = { direction -> swipeLibrarySection(direction) },
                         onRatingChanged = {
                             likedIds = RatingManager.likedIds(context)
                             dislikedIds = RatingManager.dislikedIds(context)
@@ -681,6 +711,8 @@ private fun PlayerHost(
     sleepEnd: Long,
     onOpenSleep: () -> Unit,
     onMore: () -> Unit,
+    onArtTap: () -> Unit,
+    onSwipeSection: (Int) -> Unit,
     onRatingChanged: () -> Unit,
 ) {
     NowPlayingScreen(
@@ -704,6 +736,8 @@ private fun PlayerHost(
         onCycleRepeat = { remote.cycleRepeat() },
         onOpenSleep = onOpenSleep,
         onMore = onMore,
+        onArtTap = onArtTap,
+        onSwipeSection = onSwipeSection,
         onRatingChanged = onRatingChanged,
     )
 }
