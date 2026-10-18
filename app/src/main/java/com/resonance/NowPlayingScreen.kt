@@ -53,7 +53,7 @@ fun NowPlayingScreen(
     
     // This checks the memory to see if the song was already liked
     var isLiked by remember(songId) { mutableStateOf(RatingManager.isLiked(context, songId)) }
-    var isDisliked by remember(songId) { mutableStateOf(false) } // Dislikes are just visual for now
+    var isDisliked by remember(songId) { mutableStateOf(false) }
 
     val bgBrush = Brush.verticalGradient(
         colors = listOf(Color(0xFF0F1A2E), Color(0xFF05080F), Color.Black)
@@ -91,7 +91,7 @@ fun NowPlayingScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    // LIKE BUTTON - Now saves to memory!
+                    // LIKE BUTTON
                     PillIconButton(
                         icon = Icons.Outlined.ThumbUp, 
                         contentDescription = "Like", 
@@ -100,7 +100,7 @@ fun NowPlayingScreen(
                         onClick = { 
                             isLiked = !isLiked
                             if (isLiked) isDisliked = false
-                            RatingManager.saveRating(context, songId, isLiked) // Save it!
+                            RatingManager.saveRating(context, songId, isLiked)
                         }
                     )
                     // DISLIKE BUTTON
@@ -113,7 +113,7 @@ fun NowPlayingScreen(
                             isDisliked = !isDisliked
                             if (isDisliked) {
                                 isLiked = false
-                                RatingManager.saveRating(context, songId, false) // Remove like if disliked
+                                RatingManager.saveRating(context, songId, false)
                             }
                         }
                     )
@@ -172,6 +172,7 @@ fun NowPlayingScreen(
                     ControlButton(Icons.Filled.FastRewind, 28.dp) { onSeek((progress - 0.05f).coerceAtLeast(0f)) }
                     ControlButton(Icons.Filled.SkipPrevious, 32.dp) { onSeek(0f) }
                     
+                    // MAIN PLAY BUTTON
                     Box(
                         modifier = Modifier.size(80.dp).background(Color.Black, CircleShape).clickable { onPlayPause() },
                         contentAlignment = Alignment.Center
