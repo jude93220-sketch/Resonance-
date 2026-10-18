@@ -51,8 +51,9 @@ fun NowPlayingScreen(
 ) {
     val context = LocalContext.current
     
+    // This checks the memory to see if the song was already liked
     var isLiked by remember(songId) { mutableStateOf(RatingManager.isLiked(context, songId)) }
-    var isDisliked by remember(songId) { mutableStateOf(false) }
+    var isDisliked by remember(songId) { mutableStateOf(false) } // Dislikes are just visual for now
 
     val bgBrush = Brush.verticalGradient(
         colors = listOf(Color(0xFF0F1A2E), Color(0xFF05080F), Color.Black)
@@ -90,6 +91,7 @@ fun NowPlayingScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // LIKE BUTTON - Now saves to memory!
                     PillIconButton(
                         icon = Icons.Outlined.ThumbUp, 
                         contentDescription = "Like", 
@@ -98,9 +100,10 @@ fun NowPlayingScreen(
                         onClick = { 
                             isLiked = !isLiked
                             if (isLiked) isDisliked = false
-                            RatingManager.saveRating(context, songId, isLiked)
+                            RatingManager.saveRating(context, songId, isLiked) // Save it!
                         }
                     )
+                    // DISLIKE BUTTON
                     PillIconButton(
                         icon = Icons.Outlined.ThumbDown, 
                         contentDescription = "Dislike", 
@@ -110,7 +113,7 @@ fun NowPlayingScreen(
                             isDisliked = !isDisliked
                             if (isDisliked) {
                                 isLiked = false
-                                RatingManager.saveRating(context, songId, false)
+                                RatingManager.saveRating(context, songId, false) // Remove like if disliked
                             }
                         }
                     )
