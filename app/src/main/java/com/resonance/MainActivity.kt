@@ -114,7 +114,7 @@ class MainActivity : ComponentActivity() {
                             showPlayer = true
                         },
                         onOpenPlayer = { showPlayer = true },
-                        onPlayPause = { togglePlayPause() }
+                        onPlayPause = { togglePlayPause() } 
                     )
                 }
             }
