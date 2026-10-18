@@ -11,104 +11,113 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlin.random.Random
 
 @Composable
 fun NowPlayingScreen() {
-    // Deep blue/black gradient to simulate the blurred background in your screenshot
-    val bgBrush = Brush.verticalGradient(
-        colors = listOf(
-            Color(0xFF00132B),
-            Color(0xFF000000)
-        )
-    )
-
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(bgBrush)
+            .background(Color.Black) // Pure black background
     ) {
+        // Massive faded waveform in the background
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val path = Path()
+            val width = size.width
+            val height = size.height
+            
+            // Draw a large abstract waveform behind the top section
+            path.moveTo(0f, height * 0.25f)
+            path.lineTo(width * 0.1f, height * 0.15f)
+            path.lineTo(width * 0.2f, height * 0.35f)
+            path.lineTo(width * 0.3f, height * 0.1f)
+            path.lineTo(width * 0.4f, height * 0.3f)
+            path.lineTo(width * 0.5f, height * 0.05f)
+            path.lineTo(width * 0.6f, height * 0.25f)
+            path.lineTo(width * 0.7f, height * 0.1f)
+            path.lineTo(width * 0.8f, height * 0.4f)
+            path.lineTo(width * 0.9f, height * 0.2f)
+            path.lineTo(width, height * 0.5f)
+
+            drawPath(
+                path = path,
+                color = Color.DarkGray.copy(alpha = 0.2f),
+                style = Stroke(width = 80f) // Very thick lines
+            )
+        }
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 20.dp, vertical = 16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .padding(horizontal = 24.dp, vertical = 16.dp)
         ) {
             // Top Bar
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.Filled.KeyboardArrowDown, "Down", tint = Color.White)
+                Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+                    Icon(Icons.Filled.Search, "Search", tint = Color.White)
+                    Icon(Icons.Filled.MoreVert, "More", tint = Color.White)
+                }
+            }
+
+            Spacer(modifier = Modifier.weight(1f)) // Push controls down
+
+            // Thumbs Up/Down & Queue Row
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(Icons.Filled.KeyboardArrowDown, "Down", tint = Color.White)
-                Icon(Icons.Filled.Search, "Search", tint = Color.White)
-                Icon(Icons.Filled.MoreVert, "More", tint = Color.White)
-            }
-
-            Spacer(modifier = Modifier.height(32.dp))
-
-            // Album Art (Placeholder)
-            Box(
-                modifier = Modifier
-                    .size(260.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(Color(0xFF1E3A8A)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(Icons.Filled.MusicNote, null, tint = Color.White, modifier = Modifier.size(80.dp))
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // Thumbs Up/Down Row
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Start,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = {}, modifier = Modifier.background(Color(0xFF1E1E1E), CircleShape)) {
-                    Icon(Icons.Filled.ThumbUp, "Like", tint = Color.White)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    IconButton(onClick = {}, modifier = Modifier.background(Color(0xFF1E1E1E), CircleShape)) {
+                        Icon(Icons.Filled.ThumbUp, "Like", tint = Color.White)
+                    }
+                    IconButton(onClick = {}, modifier = Modifier.background(Color(0xFF1E1E1E), CircleShape)) {
+                        Icon(Icons.Filled.ThumbDown, "Dislike", tint = Color.White)
+                    }
                 }
-                Spacer(modifier = Modifier.width(8.dp))
                 IconButton(onClick = {}, modifier = Modifier.background(Color(0xFF1E1E1E), CircleShape)) {
-                    Icon(Icons.Filled.ThumbDown, "Dislike", tint = Color.White)
+                    Icon(Icons.Filled.MoreVert, "More", tint = Color.White)
                 }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
             // Track Info Pills
-            Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.Start) {
+            Column {
                 Text(
-                    text = "i'kthande (Official Audio) feat. CowBo",
+                    text = "Baba Yilwa_124kbps.mp3",
                     color = Color.White,
-                    fontSize = 18.sp,
+                    fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier
-                        .background(Color(0xFF1E1E1E), RoundedCornerShape(8.dp))
-                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                        .background(Color(0xFF1E1E1E), RoundedCornerShape(50))
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "Awakened Regal - Awakened Regal",
+                    text = "Unknown artist",
                     color = Color.White.copy(alpha = 0.8f),
                     fontSize = 14.sp,
                     modifier = Modifier
-                        .background(Color(0xFF1E1E1E), RoundedCornerShape(8.dp))
-                        .padding(horizontal = 12.dp, vertical = 4.dp)
+                        .background(Color(0xFF1E1E1E), RoundedCornerShape(50))
+                        .padding(horizontal = 16.dp, vertical = 6.dp)
                 )
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Utility Buttons Row
+            // Utility Buttons Row (EQ, Timer, Repeat, Shuffle)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -124,47 +133,48 @@ fun NowPlayingScreen() {
                 }
             }
 
-            Spacer(modifier = Modifier.weight(1f))
+            Spacer(modifier = Modifier.weight(0.5f))
 
-            // Waveform Visualizer & Seekbar
+            // Waveform Visualizer & Playback Controls
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(120.dp),
                 contentAlignment = Alignment.Center
             ) {
-                // Draw the waveform
+                // Draw the small waveform
                 Canvas(modifier = Modifier.fillMaxSize()) {
-                    val barWidth = 4.dp.toPx()
-                    val gap = 4.dp.toPx()
+                    val barWidth = 6.dp.toPx()
+                    val gap = 6.dp.toPx()
                     val numBars = (size.width / (barWidth + gap)).toInt()
+                    val centerY = size.height / 2f
                     
                     for (i in 0 until numBars) {
-                        // Generate a fake waveform shape
-                        val heightFactor = Random(i).nextFloat() * 0.8f + 0.2f
+                        // Random heights to simulate audio
+                        val heightFactor = if (i % 3 == 0) 0.8f else if (i % 2 == 0) 0.4f else 0.2f
                         val barHeight = size.height * heightFactor
                         val x = i * (barWidth + gap)
                         
-                        // Color bars that are "played" (past the middle) differently
-                        val color = if (i < numBars / 3) Color.White else Color.White.copy(alpha = 0.3f)
+                        // Highlight the "played" portion
+                        val color = if (i < numBars / 4) Color.White else Color.White.copy(alpha = 0.2f)
                         
                         drawLine(
                             color = color,
-                            start = Offset(x, (size.height - barHeight) / 2),
-                            end = Offset(x, (size.height + barHeight) / 2),
+                            start = Offset(x, centerY - (barHeight / 2)),
+                            end = Offset(x, centerY + (barHeight / 2)),
                             strokeWidth = barWidth
                         )
                     }
                 }
 
-                // Playback Controls Overlay
+                // Playback Controls
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    ControlButton(Icons.Filled.SkipPrevious, 40.dp)
-                    ControlButton(Icons.Filled.FastRewind, 48.dp)
+                    ControlButton(Icons.Filled.FastRewind, 28.dp)
+                    ControlButton(Icons.Filled.SkipPrevious, 32.dp)
                     
                     // Play Button
                     Box(
@@ -173,11 +183,11 @@ fun NowPlayingScreen() {
                             .background(Color.Black, CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Filled.Pause, "Play/Pause", tint = Color.White, modifier = Modifier.size(48.dp))
+                        Icon(Icons.Filled.PlayArrow, "Play", tint = Color.White, modifier = Modifier.size(48.dp))
                     }
 
-                    ControlButton(Icons.Filled.FastForward, 48.dp)
-                    ControlButton(Icons.Filled.SkipNext, 40.dp)
+                    ControlButton(Icons.Filled.SkipNext, 32.dp)
+                    ControlButton(Icons.Filled.FastForward, 28.dp)
                 }
             }
 
@@ -186,32 +196,34 @@ fun NowPlayingScreen() {
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text("1:33", color = Color.White, fontSize = 12.sp, modifier = Modifier.background(Color.Black, RoundedCornerShape(12.dp)).padding(horizontal = 8.dp, vertical = 4.dp))
-                Text("7:26", color = Color.White, fontSize = 12.sp, modifier = Modifier.background(Color.Black, RoundedCornerShape(12.dp)).padding(horizontal = 8.dp, vertical = 4.dp))
+                Text("0:01", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Text("3:54", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
             // Audio Info Pill
-            Text(
-                text = "48 KHZ 160 KBPS MP3",
-                color = Color.White.copy(alpha = 0.7f),
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier
-                    .background(Color(0xFF1E1E1E), RoundedCornerShape(16.dp))
-                    .padding(horizontal = 16.dp, vertical = 6.dp)
-            )
+            Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Text(
+                    text = "48 KHZ 125 KBPS OPUS",
+                    color = Color.White.copy(alpha = 0.8f),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier
+                        .background(Color(0xFF1E1E1E), RoundedCornerShape(50))
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                )
+            }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
             // Bottom Navigation Bar
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color(0xFF1E1E1E), RoundedCornerShape(24.dp))
-                    .padding(vertical = 12.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly,
+                    .background(Color(0xFF1E1E1E), RoundedCornerShape(32.dp))
+                    .padding(vertical = 16.dp, horizontal = 32.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(Icons.Filled.GridView, "Library", tint = Color.White.copy(alpha = 0.5f))
@@ -227,7 +239,7 @@ fun NowPlayingScreen() {
 fun UtilityButton(icon: androidx.compose.ui.graphics.vector.ImageVector) {
     IconButton(
         onClick = {},
-        modifier = Modifier.background(Color(0xFF1E1E1E), RoundedCornerShape(12.dp))
+        modifier = Modifier.background(Color(0xFF1E1E1E), RoundedCornerShape(16.dp))
     ) {
         Icon(icon, null, tint = Color.White.copy(alpha = 0.8f))
     }
