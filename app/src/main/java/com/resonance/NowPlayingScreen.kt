@@ -1,4 +1,4 @@
-package com.resonance 
+package com.resonance
 
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -52,31 +52,23 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.clipRect
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.sin
 
-// ---------------------------------------------------------------------------
-// Palette
-// ---------------------------------------------------------------------------
 private val PillGrey = Color(0xFF1C1C1C)
 private val WaveBackdrop = Color(0xFF262626)
 private val VisualizerPlayed = Color(0xFFB8B8B8)
 private val VisualizerRest = Color(0xFF5A5A5A)
 
-// ---------------------------------------------------------------------------
-// Screen
-// ---------------------------------------------------------------------------
 @Composable
 fun NowPlayingScreen(
     title: String = "Baba Yilwa_124kbps.mp3",
@@ -96,7 +88,6 @@ fun NowPlayingScreen(
             .fillMaxSize()
             .background(Color.Black)
     ) {
-        // 1. Giant abstract waveform in the top half (shows through the empty art space)
         BackgroundWaveform(
             modifier = Modifier
                 .fillMaxWidth()
@@ -111,13 +102,10 @@ fun NowPlayingScreen(
                 .navigationBarsPadding()
                 .padding(horizontal = 16.dp)
         ) {
-            // 2. Top bar — plain white icons, no backgrounds
             TopBar(onBack = onBack, onSearch = onSearch, onMenu = onMenu)
 
-            // 3. Album-art space (empty: no art)
             Spacer(modifier = Modifier.weight(1f))
 
-            // 4. Pill buttons: thumbs
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 PillIconButton(Icons.Filled.ThumbUp, "Like", width = 96.dp) {}
                 PillIconButton(Icons.Filled.ThumbDown, "Dislike", width = 96.dp) {}
@@ -125,14 +113,12 @@ fun NowPlayingScreen(
 
             Spacer(Modifier.height(16.dp))
 
-            // 5. Track info pills
             InfoPill(text = title, fontSize = 22.sp, weight = FontWeight.Bold)
             Spacer(Modifier.height(8.dp))
             InfoPill(text = artist, fontSize = 17.sp, weight = FontWeight.SemiBold)
 
             Spacer(Modifier.height(20.dp))
 
-            // 4. Pill buttons: EQ, Timer ... Repeat, Shuffle
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
@@ -148,7 +134,6 @@ fun NowPlayingScreen(
 
             Spacer(Modifier.height(20.dp))
 
-            // 6. Visualizer wave with floating white transport icons on top
             VisualizerWithControls(
                 isPlaying = isPlaying,
                 progress = progress,
@@ -170,7 +155,6 @@ fun NowPlayingScreen(
 
             Spacer(Modifier.height(12.dp))
 
-            // Format chip
             Box(
                 modifier = Modifier
                     .align(Alignment.CenterHorizontally)
@@ -189,7 +173,6 @@ fun NowPlayingScreen(
 
             Spacer(Modifier.height(12.dp))
 
-            // 7. Floating bottom navigation pill
             BottomNavPill()
 
             Spacer(Modifier.height(8.dp))
@@ -197,9 +180,6 @@ fun NowPlayingScreen(
     }
 }
 
-// ---------------------------------------------------------------------------
-// Top bar
-// ---------------------------------------------------------------------------
 @Composable
 private fun TopBar(onBack: () -> Unit, onSearch: () -> Unit, onMenu: () -> Unit) {
     Row(
@@ -233,9 +213,6 @@ private fun BareIcon(
     }
 }
 
-// ---------------------------------------------------------------------------
-// Pills
-// ---------------------------------------------------------------------------
 @Composable
 private fun PillIconButton(
     icon: ImageVector,
@@ -279,37 +256,21 @@ private fun InfoPill(
     }
 }
 
-// ---------------------------------------------------------------------------
-// Background waveform (stylized heartbeat / mountain ridge)
-// ---------------------------------------------------------------------------
 @Composable
 private fun BackgroundWaveform(modifier: Modifier = Modifier) {
     Canvas(modifier = modifier) {
         val w = size.width
         val h = size.height
 
-        // Normalised peaks (x, y) of the top edge, y=0 is top
         val top = listOf(
-            0.07f to 0.62f,
-            0.15f to 0.38f,
-            0.20f to 0.50f,
-            0.29f to 0.30f,
-            0.37f to 0.52f,
-            0.49f to 0.24f,
-            0.61f to 0.68f,
-            0.73f to 0.00f,
-            0.95f to 0.88f,
+            0.07f to 0.62f, 0.15f to 0.38f, 0.20f to 0.50f,
+            0.29f to 0.30f, 0.37f to 0.52f, 0.49f to 0.24f,
+            0.61f to 0.68f, 0.73f to 0.00f, 0.95f to 0.88f,
         )
-        // Lower edge that gives the zig-zag ribbon its thickness
         val bottom = listOf(
-            0.94f to 0.90f,
-            0.61f to 0.82f,
-            0.50f to 0.44f,
-            0.37f to 0.66f,
-            0.27f to 0.45f,
-            0.20f to 0.62f,
-            0.15f to 0.52f,
-            0.07f to 0.64f,
+            0.94f to 0.90f, 0.61f to 0.82f, 0.50f to 0.44f,
+            0.37f to 0.66f, 0.27f to 0.45f, 0.20f to 0.62f,
+            0.15f to 0.52f, 0.07f to 0.64f,
         )
 
         val path = Path().apply {
@@ -322,9 +283,6 @@ private fun BackgroundWaveform(modifier: Modifier = Modifier) {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Visualizer: continuous filled wave + floating transport icons
-// ---------------------------------------------------------------------------
 @Composable
 private fun VisualizerWithControls(
     isPlaying: Boolean,
@@ -358,7 +316,6 @@ private fun VisualizerWithControls(
             val steps = 160
 
             fun amp(t: Float): Float {
-                // Sum of sines → organic, smooth envelope; taller toward the right
                 val a = abs(sin(t * 9f + livePhase)) * 0.35f +
                         abs(sin(t * 17f - livePhase * 1.3f)) * 0.25f +
                         abs(sin(t * 4f + livePhase * 0.5f)) * 0.25f
@@ -367,7 +324,6 @@ private fun VisualizerWithControls(
             }
 
             val path = Path().apply {
-                // Top edge, left → right
                 moveTo(0f, midY - amp(0f))
                 for (i in 1..steps) {
                     val t = i / steps.toFloat()
@@ -379,7 +335,6 @@ private fun VisualizerWithControls(
                     quadraticBezierTo(px, midY - amp(prevT), cx, cy)
                 }
                 lineTo(w, midY - amp(1f))
-                // Bottom edge, right → left (mirror)
                 lineTo(w, midY + amp(1f))
                 for (i in steps - 1 downTo 0) {
                     val t = i / steps.toFloat()
@@ -395,17 +350,14 @@ private fun VisualizerWithControls(
 
             val playedX = w * progress.coerceIn(0f, 1f)
 
-            // Remaining portion
             clipRect(left = playedX, right = w) {
                 drawPath(path, VisualizerRest)
             }
-            // Played portion
             clipRect(left = 0f, right = playedX) {
                 drawPath(path, VisualizerPlayed)
             }
         }
 
-        // Pure white floating icons — NO backgrounds behind them
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceEvenly,
@@ -452,9 +404,6 @@ private fun TransportIcon(
     }
 }
 
-// ---------------------------------------------------------------------------
-// Bottom navigation pill
-// ---------------------------------------------------------------------------
 @Composable
 private fun BottomNavPill() {
     Row(
@@ -485,10 +434,4 @@ private fun BottomNavPill() {
             }
         }
     }
-}
-
-@Preview(showBackground = true, backgroundColor = 0xFF000000, widthDp = 360, heightDp = 740)
-@Composable
-private fun NowPlayingScreenPreview() {
-    NowPlayingScreen()
 }
