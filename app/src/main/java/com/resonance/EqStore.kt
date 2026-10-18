@@ -28,12 +28,15 @@ object EqStore {
     const val K_PREAMP = "eq_preamp"
     const val K_BASS = "eq_bass"
     const val K_TREBLE = "eq_treble"
+    const val K_BASS_BOOST = "eq_bass_boost"
+    const val K_STEREO_WIDTH = "eq_stereo_width"
     const val K_PRESET = "eq_preset_name"
     const val K_USER = "eq_user_presets"
     const val K_ENGINE = "eq_engine"
 
     val KEYS = setOf(
         K_MASTER, K_EQ_ON, K_TONE_ON, K_LIMIT_ON, K_GAINS, K_PREAMP, K_BASS, K_TREBLE,
+        K_BASS_BOOST, K_STEREO_WIDTH,
     )
 
     val FREQS = intArrayOf(31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000)
@@ -70,6 +73,14 @@ object EqStore {
     fun treble(c: Context) = prefs(c).getInt(K_TREBLE, 50)
     fun saveTreble(c: Context, v: Int) = prefs(c).edit().putInt(K_TREBLE, v).apply()
 
+    fun bassBoost(c: Context) = prefs(c).getInt(K_BASS_BOOST, 0)
+    fun saveBassBoost(c: Context, v: Int) =
+        prefs(c).edit().putInt(K_BASS_BOOST, v.coerceIn(0, 100)).apply()
+
+    fun stereoWidth(c: Context) = prefs(c).getInt(K_STEREO_WIDTH, 0)
+    fun saveStereoWidth(c: Context, v: Int) =
+        prefs(c).edit().putInt(K_STEREO_WIDTH, v.coerceIn(0, 100)).apply()
+
     fun presetName(c: Context) = prefs(c).getString(K_PRESET, "") ?: ""
     fun savePresetName(c: Context, v: String) = prefs(c).edit().putString(K_PRESET, v).apply()
 
@@ -82,6 +93,8 @@ object EqStore {
             .putFloat(K_PREAMP, 0f)
             .putInt(K_BASS, 0)
             .putInt(K_TREBLE, 50)
+            .putInt(K_BASS_BOOST, 0)
+            .putInt(K_STEREO_WIDTH, 0)
             .putString(K_PRESET, "Flat")
             .apply()
     }

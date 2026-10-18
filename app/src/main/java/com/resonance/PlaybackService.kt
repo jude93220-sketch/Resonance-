@@ -2,9 +2,11 @@ package com.resonance
 
 import android.content.SharedPreferences
 import android.media.audiofx.AudioEffect
+import android.media.audiofx.BassBoost
 import android.media.audiofx.DynamicsProcessing
 import android.media.audiofx.Equalizer
 import android.media.audiofx.LoudnessEnhancer
+import android.media.audiofx.Virtualizer
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -35,6 +37,10 @@ class PlaybackService : MediaSessionService(), SharedPreferences.OnSharedPrefere
     private var dsp: AudioEffect? = null
     private var equalizer: Equalizer? = null
     private var loudness: LoudnessEnhancer? = null
+    private var bassBoost: BassBoost? = null
+    private var virtualizer: Virtualizer? = null
+    private var lastMediaId: String? = null
+    private var fadeInStartedAt = 0L
 
     private val handler = Handler(Looper.getMainLooper())
     private val sleepRunnable = Runnable {
@@ -45,6 +51,12 @@ class PlaybackService : MediaSessionService(), SharedPreferences.OnSharedPrefere
         override fun run() {
             savePlaybackState()
             handler.postDelayed(this, 2_000L)
+        }
+    }
+    private val transitionRunnable = object : Runnable {
+        override fun run() {
+            updateTransitionFade()
+            handler.postDelayed(this, 50L)
         }
     }
 
@@ -62,6 +74,8 @@ class PlaybackService : MediaSessionService(), SharedPreferences.OnSharedPrefere
             .setHandleAudioBecomingNoisy(AppSettings.pauseOnDisconnect(this))
             .setWakeMode(C.WAKE_MODE_LOCAL)
             .build()
+        // Do not insert an artificial pause between consecutive queue items.
+        exo.setPauseAtEndOfMediaItems(false)
         player = exo
 
         exo.addListener(object : Player.Listener {
@@ -73,6 +87,15 @@ class PlaybackService : MediaSessionService(), SharedPreferences.OnSharedPrefere
                 // counts plays for the "Most Played" list
                 val id = mediaItem?.mediaId?.toLongOrNull()
                 if (id != null) PlayStats.increment(this@PlaybackService, id)
+                val newId = mediaItem?.mediaId
+                if (newId != null && lastMediaId != null && newId != lastMediaId) {
+                    val fade = AppSettings.crossfadeMs(this@PlaybackService)
+                    if (fade > 0) {
+                        exo.volume = 0f
+                        fadeInStartedAt = System.currentTimeMillis()
+                    }
+                }
+                lastMediaId = newId
                 savePlaybackState()
             }
 
@@ -101,6 +124,7 @@ class PlaybackService : MediaSessionService(), SharedPreferences.OnSharedPrefere
         AppSettings.prefs(this).registerOnSharedPreferenceChangeListener(this)
         scheduleSleep()
         handler.post(stateRunnable)
+        handler.post(transitionRunnable)
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? =
@@ -109,6 +133,7 @@ class PlaybackService : MediaSessionService(), SharedPreferences.OnSharedPrefere
     override fun onDestroy() {
         player?.let { savePlaybackState(it) }
         handler.removeCallbacks(stateRunnable)
+        handler.removeCallbacks(transitionRunnable)
         handler.removeCallbacksAndMessages(null)
         AudioPrefs.prefs(this).unregisterOnSharedPreferenceChangeListener(this)
         EqStore.prefs(this).unregisterOnSharedPreferenceChangeListener(this)
@@ -150,6 +175,37 @@ class PlaybackService : MediaSessionService(), SharedPreferences.OnSharedPrefere
         )
     }
 
+    /**
+     * Media3 1.4 has no built-in two-deck crossfader. This preserves queue semantics and provides
+     * a safe transition ramp: the outgoing item fades down before the queue advances, and the
+     * incoming item fades up. A future dual-deck engine can replace this without changing the
+     * settings or MediaSession contract.
+     */
+    private fun updateTransitionFade() {
+        val exo = player ?: return
+        val fade = AppSettings.crossfadeMs(this)
+        if (fade <= 0) {
+            if (exo.volume != 1f) exo.volume = 1f
+            fadeInStartedAt = 0L
+            return
+        }
+        if (fadeInStartedAt > 0L) {
+            val fraction =
+                ((System.currentTimeMillis() - fadeInStartedAt).toFloat() / fade).coerceIn(0f, 1f)
+            exo.volume = fraction
+            if (fraction >= 1f) fadeInStartedAt = 0L
+            return
+        }
+        if (!exo.isPlaying || exo.duration <= 0L) return
+        val hasFollowingItem = exo.hasNextMediaItem() || exo.repeatMode == Player.REPEAT_MODE_ALL
+        val remaining = exo.duration - exo.currentPosition
+        if (hasFollowingItem && remaining in 1..fade.toLong()) {
+            exo.volume = (remaining.toFloat() / fade).coerceIn(0f, 1f)
+        } else if (remaining > fade) {
+            exo.volume = 1f
+        }
+    }
+
     // ---------------------------------------------------------------- settings
 
     override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences?, key: String?) {
@@ -180,6 +236,9 @@ class PlaybackService : MediaSessionService(), SharedPreferences.OnSharedPrefere
             EqStore.setEngine(this, "")
             return
         }
+
+        try { bassBoost = BassBoost(0, sessionId) } catch (t: Throwable) { bassBoost = null }
+        try { virtualizer = Virtualizer(0, sessionId) } catch (t: Throwable) { virtualizer = null }
 
         var engine = ""
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
@@ -259,6 +318,8 @@ class PlaybackService : MediaSessionService(), SharedPreferences.OnSharedPrefere
             }
         } catch (t: Throwable) {
         }
+
+        applyEnhancers(snap.master)
     }
 
     @RequiresApi(Build.VERSION_CODES.P)
@@ -278,14 +339,34 @@ class PlaybackService : MediaSessionService(), SharedPreferences.OnSharedPrefere
         )
         dp.setLimiterAllChannelsTo(limiter)
         dp.setEnabled(snap.master)
+        applyEnhancers(snap.master)
+    }
+
+    private fun applyEnhancers(master: Boolean) {
+        val bass = EqStore.bassBoost(this)
+        val width = EqStore.stereoWidth(this)
+        try {
+            bassBoost?.setStrength((bass * 10).coerceIn(0, 1000).toShort())
+            bassBoost?.setEnabled(master && bass > 0)
+        } catch (t: Throwable) {
+        }
+        try {
+            virtualizer?.setStrength((width * 10).coerceIn(0, 1000).toShort())
+            virtualizer?.setEnabled(master && width > 0)
+        } catch (t: Throwable) {
+        }
     }
 
     private fun releaseEffects() {
         try { dsp?.release() } catch (t: Throwable) { }
         try { equalizer?.release() } catch (t: Throwable) { }
         try { loudness?.release() } catch (t: Throwable) { }
+        try { bassBoost?.release() } catch (t: Throwable) { }
+        try { virtualizer?.release() } catch (t: Throwable) { }
         dsp = null
         equalizer = null
         loudness = null
+        bassBoost = null
+        virtualizer = null
     }
 }

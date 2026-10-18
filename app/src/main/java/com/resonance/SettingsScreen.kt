@@ -82,6 +82,7 @@ fun SettingsScreen(
             when (page) {
                 null -> {
                     LinkRow("Audio", "Equalizer, audio engine info") { page = "Audio" }
+                    LinkRow("Playback", "Gapless playback and track transitions") { page = "Playback" }
                     LinkRow("Library", "Scanner and library options") { page = "Library" }
                     LinkRow("Headset/Bluetooth", "Connection behaviour") { page = "Headset/Bluetooth" }
                     LinkRow("Lock Screen", "Coming soon", enabled = false) { }
@@ -93,6 +94,7 @@ fun SettingsScreen(
                 }
 
                 "Audio" -> AudioPage(onOpenEqualizer)
+                "Playback" -> PlaybackPage(onChanged)
                 "Library" -> LibraryPage(songCount, onRescan)
                 "Headset/Bluetooth" -> HeadsetPage(onChanged)
                 "Look and Feel" -> LookPage(onChanged)
@@ -121,6 +123,36 @@ private fun AudioPage(onOpenEqualizer: () -> Unit) {
     LinkRow("Reset equalizer", "Flat bands, preamp 0, bass 0%, treble 50%") {
         EqStore.resetAll(context)
         tick++
+    }
+}
+
+@Composable
+private fun PlaybackPage(onChanged: () -> Unit) {
+    val context = LocalContext.current
+    var tick by remember { mutableIntStateOf(0) }
+    var crossfade by remember(tick) { mutableIntStateOf(AppSettings.crossfadeMs(context)) }
+
+    SectionLabel("Transition")
+    LinkRow(
+        "Gapless playback",
+        "Enabled for every queue; no artificial pause is inserted between tracks",
+    ) { }
+    SliderRow(
+        title = "Crossfade",
+        valueLabel = if (crossfade == 0) "Off" else "${crossfade / 1000f}s",
+        value = crossfade.toFloat(),
+        range = 0f..12000f,
+        steps = 23,
+        footer = "Smoothly fades between tracks when the device output supports it.",
+    ) {
+        crossfade = it.roundToInt()
+        AppSettings.putInt(context, AppSettings.K_CROSSFADE_MS, crossfade)
+        onChanged()
+    }
+    LinkRow("Restore Defaults", null) {
+        AppSettings.restore(context, AppSettings.K_CROSSFADE_MS)
+        tick++
+        onChanged()
     }
 }
 
