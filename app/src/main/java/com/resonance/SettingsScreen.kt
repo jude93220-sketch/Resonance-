@@ -245,14 +245,20 @@ private fun LookPage(onChanged: () -> Unit) {
     val context = LocalContext.current
     var tick by remember { mutableIntStateOf(0) }
     var keepOn by remember(tick) { mutableStateOf(AppSettings.keepScreenOn(context)) }
+    var swipeTracks by remember(tick) { mutableStateOf(AppSettings.swipeTracks(context)) }
 
     SwitchRow("Keep Screen On", "Always keep screen on in the app", keepOn) {
         keepOn = it
         AppSettings.putBool(context, AppSettings.K_KEEP_ON, it)
         onChanged()
     }
+    SwitchRow("Swipe Album Art To Change Tracks", "Swipe left for next and right for previous", swipeTracks) {
+        swipeTracks = it
+        AppSettings.putBool(context, AppSettings.K_SWIPE_TRACKS, it)
+        onChanged()
+    }
     LinkRow("Restore Defaults", null) {
-        AppSettings.restore(context, AppSettings.K_KEEP_ON)
+        AppSettings.restore(context, AppSettings.K_KEEP_ON, AppSettings.K_SWIPE_TRACKS)
         tick++
         onChanged()
     }

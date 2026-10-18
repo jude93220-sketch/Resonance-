@@ -1,4 +1,10 @@
 package com.resonance
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -73,6 +79,7 @@ private val PillDark = Color(0x66000000)
 fun NowPlayingScreen(
     song: Song,
     visualizerMode: Int,
+    swipeTracks: Boolean,
     isPlaying: Boolean,
     positionMs: Long,
     durationMs: Long,
@@ -124,13 +131,42 @@ fun NowPlayingScreen(
     ) {
         Spacer(Modifier.weight(0.5f))
 
-        ArtCard(
-            song = song,
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(1.75f)
-                .clip(RoundedCornerShape(28.dp)),
-        )
+                .clip(RoundedCornerShape(28.dp))
+                .pointerInput(song.id, swipeTracks) {
+                    var dragDistance = 0f
+                    detectHorizontalDragGestures(
+                        onDragStart = { dragDistance = 0f },
+                        onHorizontalDrag = { change, amount ->
+                            dragDistance += amount
+                            change.consume()
+                        },
+                        onDragEnd = {
+                            if (swipeTracks && abs(dragDistance) >= 80f) {
+                                if (dragDistance < 0f) onNext() else onPrev()
+                            }
+                        },
+                    )
+                },
+            contentAlignment = Alignment.Center,
+        ) {
+            AnimatedContent(
+                targetState = song.id,
+                transitionSpec = {
+                    (slideInHorizontally { it / 3 } + fadeIn()) togetherWith
+                        (slideOutHorizontally { -it / 3 } + fadeOut())
+                },
+                label = "albumArtSwipe",
+            ) {
+                ArtCard(
+                    song = song,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+        }
 
         Spacer(Modifier.weight(0.4f))
 

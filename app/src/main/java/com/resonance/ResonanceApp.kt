@@ -413,6 +413,7 @@ fun ResonanceApp(remote: PlayerRemote) {
                         remote = remote,
                         song = current,
                         visualizerMode = visualizerMode,
+                        swipeTracks = AppSettings.swipeTracks(context),
                         sleepEnd = sleepEnd,
                         onOpenSleep = { showSleep = true },
                         onMore = { showPlayerMenu = true },
@@ -563,6 +564,7 @@ private fun PlayerHost(
     remote: PlayerRemote,
     song: Song,
     visualizerMode: Int,
+    swipeTracks: Boolean,
     sleepEnd: Long,
     onOpenSleep: () -> Unit,
     onMore: () -> Unit,
@@ -571,6 +573,7 @@ private fun PlayerHost(
     NowPlayingScreen(
         song = song,
         visualizerMode = visualizerMode,
+        swipeTracks = swipeTracks,
         isPlaying = remote.isPlaying,
         positionMs = remote.positionMs,
         durationMs = if (remote.durationMs > 0) remote.durationMs else song.duration,
