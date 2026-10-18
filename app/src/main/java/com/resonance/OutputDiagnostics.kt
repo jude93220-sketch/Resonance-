@@ -18,9 +18,23 @@ object OutputDiagnostics {
         val usb = routes.contains("USB")
         val hiRes = usb && rateNumber >= 96_000
         val lowLatency = context.packageManager.hasSystemFeature("android.hardware.audio.low_latency")
+        val proAudio = context.packageManager.hasSystemFeature("android.hardware.audio.pro")
+        val aaudio = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+        val usbName = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            audio.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
+                .firstOrNull { it.type == AudioDeviceInfo.TYPE_USB_DEVICE || it.type == AudioDeviceInfo.TYPE_USB_HEADSET }
+                ?.productName?.toString()
+        } else null
         val capability = if (hiRes) "Hi-Res capable" else if (usb) "USB detected" else "PCM output"
-        return "${rate} Hz · ${buffer} frames · $routes · $capability" +
-            if (lowLatency) " · low-latency" else ""
+        val details = buildString {
+            append(capability)
+            if (lowLatency) append(" · low-latency")
+            if (proAudio) append(" · pro-audio")
+            if (aaudio) append(" · AAudio/OpenSL")
+            if (usbName != null) append(" · ").append(usbName)
+            if (routes.contains("Bluetooth")) append(" · Bluetooth codec controlled by system")
+        }
+        return "${rate} Hz · ${buffer} frames · $routes · $details"
     }
 
     private fun label(device: AudioDeviceInfo): String? = when (device.type) {

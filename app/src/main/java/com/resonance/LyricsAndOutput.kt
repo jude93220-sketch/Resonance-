@@ -47,6 +47,7 @@ data class OutputProfile(
     val eqPreset: String = "Flat",
     val preampDb: Float = 0f,
     val autoEqName: String = "",
+    val gains: List<Float> = emptyList(),
 )
 
 object OutputProfileStore {
@@ -61,6 +62,7 @@ object OutputProfileStore {
             eqPreset = p.getString("${key}_preset", "Flat") ?: "Flat",
             preampDb = p.getFloat("${key}_preamp", 0f),
             autoEqName = p.getString("${key}_autoeq", "") ?: "",
+            gains = p.getString("${key}_gains", "")?.split(",")?.mapNotNull { it.toFloatOrNull() }.orEmpty(),
         )
     }
 
@@ -70,6 +72,7 @@ object OutputProfileStore {
             .putString("${profile.key}_preset", profile.eqPreset)
             .putFloat("${profile.key}_preamp", profile.preampDb)
             .putString("${profile.key}_autoeq", profile.autoEqName)
+            .putString("${profile.key}_gains", profile.gains.joinToString(","))
             .apply()
     }
 }
@@ -78,6 +81,10 @@ object AutoEqImporter {
     fun parse(name: String, text: String): OutputProfile? {
         val gains = text.lineSequence().firstOrNull { it.contains("preamp", true) }
             ?.substringAfter(':', "")?.trim()?.removeSuffix("dB")?.trim()?.toFloatOrNull() ?: 0f
-        return OutputProfile(key = "imported_${name.hashCode()}", name = name, preampDb = gains, autoEqName = name)
+        val bandGains = text.lineSequence().mapNotNull { line ->
+            Regex("(?:^|\\s)(\\d+(?:\\.\\d+)?)\\s*(?:hz)?\\s*[:=]?\\s*(-?\\d+(?:\\.\\d+)?)\\s*d?b", RegexOption.IGNORE_CASE)
+                .find(line)?.groupValues?.getOrNull(2)?.toFloatOrNull()
+        }.take(10).toList()
+        return OutputProfile(key = "imported_${name.hashCode()}", name = name, preampDb = gains, autoEqName = name, gains = bandGains)
     }
 }

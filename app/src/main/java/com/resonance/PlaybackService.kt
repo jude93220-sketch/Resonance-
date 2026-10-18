@@ -229,7 +229,10 @@ class PlaybackService : MediaSessionService(), SharedPreferences.OnSharedPrefere
     private fun applyOutputProfile() {
         val profile = OutputProfileStore.profile(this, outputKey())
         val preset = EqStore.BUILTIN.firstOrNull { it.name == profile.eqPreset }
-        if (preset != null) {
+        if (profile.gains.size == EqStore.FREQS.size) {
+            EqStore.saveGains(this, profile.gains)
+            EqStore.savePreamp(this, profile.preampDb)
+        } else if (preset != null) {
             EqStore.saveGains(this, preset.gains)
             EqStore.savePreamp(this, preset.preamp + profile.preampDb)
         } else if (profile.preampDb != 0f) {
