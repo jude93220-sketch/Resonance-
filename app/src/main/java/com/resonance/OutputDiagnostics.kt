@@ -14,7 +14,13 @@ object OutputDiagnostics {
         val routes = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             audio.getDevices(AudioManager.GET_DEVICES_OUTPUTS).mapNotNull { label(it) }.distinct().joinToString(", ")
         } else "system output"
-        return "${rate} Hz · ${buffer} frames · $routes"
+        val rateNumber = rate.toIntOrNull() ?: 0
+        val usb = routes.contains("USB")
+        val hiRes = usb && rateNumber >= 96_000
+        val lowLatency = context.packageManager.hasSystemFeature("android.hardware.audio.low_latency")
+        val capability = if (hiRes) "Hi-Res capable" else if (usb) "USB detected" else "PCM output"
+        return "${rate} Hz · ${buffer} frames · $routes · $capability" +
+            if (lowLatency) " · low-latency" else ""
     }
 
     private fun label(device: AudioDeviceInfo): String? = when (device.type) {

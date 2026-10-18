@@ -3,10 +3,12 @@ package com.resonance
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
+import android.provider.MediaStore
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.result.IntentSenderRequest
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -104,6 +106,30 @@ private sealed interface Route {
     object Player : Route
 }
 
+data class TagValues(val title: String, val artist: String, val album: String, val genre: String)
+
+@Composable
+private fun TagEditorDialog(song: Song, onDismiss: () -> Unit, onSave: (TagValues) -> Unit) {
+    var title by remember(song.id) { mutableStateOf(song.title) }
+    var artist by remember(song.id) { mutableStateOf(song.artist) }
+    var album by remember(song.id) { mutableStateOf(song.album) }
+    var genre by remember(song.id) { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Edit tags") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                TextField(title, { title = it }, label = { Text("Title") }, singleLine = true)
+                TextField(artist, { artist = it }, label = { Text("Artist") }, singleLine = true)
+                TextField(album, { album = it }, label = { Text("Album") }, singleLine = true)
+                TextField(genre, { genre = it }, label = { Text("Genre") }, singleLine = true)
+            }
+        },
+        confirmButton = { TextButton(onClick = { onSave(TagValues(title, artist, album, genre)) }) { Text("Save") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
+}
+
 @Composable
 fun ResonanceApp(remote: PlayerRemote) {
     val context = LocalContext.current
@@ -128,6 +154,7 @@ fun ResonanceApp(remote: PlayerRemote) {
     var showMenu by remember { mutableStateOf(false) }
     var showSleep by remember { mutableStateOf(false) }
     var showPlayerMenu by remember { mutableStateOf(false) }
+    var showTagEditor by remember { mutableStateOf(false) }
     var playlistTarget by remember { mutableStateOf<List<Long>?>(null) }
     var folderMenuSong by remember { mutableStateOf<Song?>(null) }
     var settingsTick by remember { mutableIntStateOf(0) }
@@ -145,6 +172,18 @@ fun ResonanceApp(remote: PlayerRemote) {
     val launcher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { granted = hasAudioPermission() }
+
+    var pendingTagEdit by remember { mutableStateOf<Pair<Song, TagValues>?>(null) }
+    val tagWriteLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        val pending = pendingTagEdit
+        if (result.resultCode == android.app.Activity.RESULT_OK && pending != null) {
+            TagEditor.update(context, pending.first, pending.second.title, pending.second.artist, pending.second.album, pending.second.genre)
+            scanTick++
+        }
+        pendingTagEdit = null
+    }
 
     fun requestPermissions() {
         val wanted = ArrayList<String>()
@@ -572,7 +611,28 @@ fun ResonanceApp(remote: PlayerRemote) {
                         showPlayerMenu = false
                         push(Route.Queue)
                     }) { Text("Show queue") }
+                    TextButton(onClick = {
+                        showPlayerMenu = false
+                        showTagEditor = true
+                    }) { Text("Edit tags") }
                 }
+            },
+        )
+    }
+
+    if (showTagEditor && current != null) {
+        TagEditorDialog(
+            song = current,
+            onDismiss = { showTagEditor = false },
+            onSave = { values ->
+                showTagEditor = false
+                if (!TagEditor.update(context, current, values.title, values.artist, values.album, values.genre)) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                        pendingTagEdit = current to values
+                        val request = MediaStore.createWriteRequest(context.contentResolver, listOf(current.uri))
+                        tagWriteLauncher.launch(IntentSenderRequest.Builder(request.intentSender).build())
+                    } else toast("Android denied metadata write access")
+                } else scanTick++
             },
         )
     }

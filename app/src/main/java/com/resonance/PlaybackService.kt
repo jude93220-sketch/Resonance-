@@ -3,6 +3,9 @@ package com.resonance
 import android.content.SharedPreferences
 import android.app.PendingIntent
 import android.content.Intent
+import android.media.AudioDeviceCallback
+import android.media.AudioDeviceInfo
+import android.media.AudioManager
 import android.media.audiofx.AudioEffect
 import android.media.audiofx.BassBoost
 import android.media.audiofx.DynamicsProcessing
@@ -47,6 +50,11 @@ class PlaybackService : MediaSessionService(), SharedPreferences.OnSharedPrefere
     private var lastMediaId: String? = null
     private var fadeInStartedAt = 0L
     private var replayGainMultiplier = 1f
+    private var audioManager: AudioManager? = null
+    private val outputCallback = object : AudioDeviceCallback() {
+        override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>) = applyOutputProfile()
+        override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>) = applyOutputProfile()
+    }
 
     private val handler = Handler(Looper.getMainLooper())
     private val sleepRunnable = Runnable {
@@ -141,6 +149,11 @@ class PlaybackService : MediaSessionService(), SharedPreferences.OnSharedPrefere
         applyPlaybackParameters()
 
         setupEffects(exo.audioSessionId)
+        audioManager = getSystemService(AUDIO_SERVICE) as? AudioManager
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            audioManager?.registerAudioDeviceCallback(outputCallback, handler)
+        }
+        applyOutputProfile()
         AudioPrefs.prefs(this).registerOnSharedPreferenceChangeListener(this)
         EqStore.prefs(this).registerOnSharedPreferenceChangeListener(this)
         AppSettings.prefs(this).registerOnSharedPreferenceChangeListener(this)
@@ -160,6 +173,7 @@ class PlaybackService : MediaSessionService(), SharedPreferences.OnSharedPrefere
         AudioPrefs.prefs(this).unregisterOnSharedPreferenceChangeListener(this)
         EqStore.prefs(this).unregisterOnSharedPreferenceChangeListener(this)
         AppSettings.prefs(this).unregisterOnSharedPreferenceChangeListener(this)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) audioManager?.unregisterAudioDeviceCallback(outputCallback)
         releaseEffects()
         mediaSession?.let {
             it.player.release()
@@ -199,6 +213,29 @@ class PlaybackService : MediaSessionService(), SharedPreferences.OnSharedPrefere
 
     private fun notifyWidget() {
         sendBroadcast(Intent(ResonanceWidget.ACTION_REFRESH).setPackage(packageName))
+    }
+
+    private fun outputKey(): String {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return "speaker"
+        val devices = audioManager?.getDevices(AudioManager.GET_DEVICES_OUTPUTS).orEmpty()
+        return when {
+            devices.any { it.type == AudioDeviceInfo.TYPE_USB_DEVICE || it.type == AudioDeviceInfo.TYPE_USB_HEADSET } -> "usb"
+            devices.any { it.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP || it.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO } -> "bluetooth"
+            devices.any { it.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES || it.type == AudioDeviceInfo.TYPE_WIRED_HEADSET } -> "wired"
+            else -> "speaker"
+        }
+    }
+
+    private fun applyOutputProfile() {
+        val profile = OutputProfileStore.profile(this, outputKey())
+        val preset = EqStore.BUILTIN.firstOrNull { it.name == profile.eqPreset }
+        if (preset != null) {
+            EqStore.saveGains(this, preset.gains)
+            EqStore.savePreamp(this, preset.preamp + profile.preampDb)
+        } else if (profile.preampDb != 0f) {
+            EqStore.savePreamp(this, profile.preampDb)
+        }
+        applyEffects()
     }
 
     private fun updateReplayGain(item: MediaItem?) {
