@@ -38,6 +38,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -61,14 +66,13 @@ import kotlin.math.abs
 import kotlin.math.sin
 import kotlin.random.Random
 
-private val VisualizerPlayed = Color.White
-private val VisualizerRest = Color.White.copy(alpha = 0.3f)
 private val PillDark = Color(0x66000000)
 
 /** The full player. The coloured background and the bottom bar come from the app shell. */
 @Composable
 fun NowPlayingScreen(
     song: Song,
+    visualizerMode: Int,
     isPlaying: Boolean,
     positionMs: Long,
     durationMs: Long,
@@ -87,6 +91,7 @@ fun NowPlayingScreen(
     onRatingChanged: () -> Unit,
 ) {
     val context = LocalContext.current
+    val palette = LocalResonancePalette.current
 
     var isLiked by remember(song.id) { mutableStateOf(RatingManager.isLiked(context, song.id)) }
     var isDisliked by remember(song.id) { mutableStateOf(RatingManager.isDisliked(context, song.id)) }
@@ -97,6 +102,13 @@ fun NowPlayingScreen(
     var dragFraction by remember { mutableStateOf<Float?>(null) }
     val shownProgress = dragFraction ?: progress
     val shownElapsed = dragFraction?.let { (it * durationMs).toLong() } ?: positionMs
+    val transition = rememberInfiniteTransition(label = "visualizer")
+    val phase by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = (2f * Math.PI).toFloat(),
+        animationSpec = infiniteRepeatable(tween(1100), RepeatMode.Restart),
+        label = "visualizerPhase",
+    )
 
     val latestSeek by rememberUpdatedState(onSeekFraction)
 
@@ -132,7 +144,7 @@ fun NowPlayingScreen(
                     icon = Icons.Outlined.ThumbUp,
                     contentDescription = "Like",
                     width = 64.dp,
-                    tint = if (isLiked) Accent else Color.White,
+                    tint = if (isLiked) palette.accent else Color.White,
                     onClick = {
                         isLiked = !isLiked
                         if (isLiked) {
@@ -176,19 +188,19 @@ fun NowPlayingScreen(
         ) {
             PillIconButton(
                 Icons.Filled.Timer, "Sleep timer", width = 64.dp,
-                tint = if (sleepActive) Accent else Color.White, onClick = onOpenSleep
+                tint = if (sleepActive) palette.accent else Color.White, onClick = onOpenSleep
             )
             Spacer(Modifier.weight(1f))
             PillIconButton(
                 if (repeatMode == Player.REPEAT_MODE_ONE) Icons.Filled.RepeatOne else Icons.Filled.Repeat,
                 "Repeat", width = 64.dp,
-                tint = if (repeatMode != Player.REPEAT_MODE_OFF) Accent else Color.White,
+                tint = if (repeatMode != Player.REPEAT_MODE_OFF) palette.accent else Color.White,
                 onClick = onCycleRepeat
             )
             Spacer(Modifier.width(8.dp))
             PillIconButton(
                 Icons.Filled.Shuffle, "Shuffle", width = 64.dp,
-                tint = if (shuffle) Accent else Color.White, onClick = onToggleShuffle
+                tint = if (shuffle) palette.accent else Color.White, onClick = onToggleShuffle
             )
         }
 
@@ -229,9 +241,16 @@ fun NowPlayingScreen(
                 val playedX = size.width * shownProgress
 
                 for (i in 0 until numBars) {
-                    val barHeight = size.height * bars[i % bars.size]
+                    val base = bars[i % bars.size]
+                    val wave = (sin(phase + i * 0.38f) * 0.5f + 0.5f)
+                    val level = when (visualizerMode) {
+                        ThemeStore.WAVE -> 0.25f + wave * 0.65f
+                        ThemeStore.PULSE -> 0.25f + ((sin(phase) * 0.5f + 0.5f) * 0.65f)
+                        else -> base * (if (isPlaying) 0.55f + wave * 0.65f else 1f)
+                    }.coerceIn(0.12f, 0.95f)
+                    val barHeight = size.height * level
                     val x = i * (barWidth + gap) + barWidth / 2f
-                    val color = if (x < playedX) VisualizerPlayed else VisualizerRest
+                    val color = if (x < playedX) palette.accent else palette.visualizerRest
                     drawLine(
                         color = color,
                         start = Offset(x, centerY - barHeight / 2),

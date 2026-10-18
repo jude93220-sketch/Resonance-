@@ -87,9 +87,9 @@ fun SettingsScreen(
                     LinkRow("Headset/Bluetooth", "Connection behaviour") { page = "Headset/Bluetooth" }
                     LinkRow("Lock Screen", "Coming soon", enabled = false) { }
                     LinkRow("Look and Feel", "Screen options") { page = "Look and Feel" }
+                    LinkRow("Themes", "Midnight, graphite, blue, amber, and light") { page = "Themes" }
                     LinkRow("Background", "Colour and gradient") { page = "Background" }
-                    LinkRow("Album Art", "Coming soon", enabled = false) { }
-                    LinkRow("Visualization", "Coming soon", enabled = false) { }
+                    LinkRow("Visualization", "Spectrum, wave, and pulse animations") { page = "Visualization" }
                     LinkRow("About", "Version info") { page = "About" }
                 }
 
@@ -98,7 +98,9 @@ fun SettingsScreen(
                 "Library" -> LibraryPage(songCount, onRescan)
                 "Headset/Bluetooth" -> HeadsetPage(onChanged)
                 "Look and Feel" -> LookPage(onChanged)
+                "Themes" -> ThemesPage(onChanged)
                 "Background" -> BackgroundPage(onChanged)
+                "Visualization" -> VisualizationPage(onChanged)
                 "About" -> AboutPage()
             }
         }
@@ -175,6 +177,47 @@ private fun LibraryPage(songCount: Int, onRescan: () -> Unit) {
     LinkRow("Restore Defaults", null) {
         AppSettings.restore(context, AppSettings.K_MIN_SECONDS)
         tick++
+    }
+}
+
+@Composable
+private fun ThemesPage(onChanged: () -> Unit) {
+    val context = LocalContext.current
+    var tick by remember { mutableIntStateOf(0) }
+    val selected = remember(tick) { ThemeStore.themeIndex(context) }
+    SectionLabel("Theme")
+    ResonanceThemes.all.forEachIndexed { index, palette ->
+        LinkRow(
+            title = if (index == selected) "✓ ${palette.name}" else palette.name,
+            subtitle = "Accent and player colors",
+        ) {
+            ThemeStore.setTheme(context, index)
+            tick++
+            onChanged()
+        }
+    }
+}
+
+@Composable
+private fun VisualizationPage(onChanged: () -> Unit) {
+    val context = LocalContext.current
+    var tick by remember { mutableIntStateOf(0) }
+    val selected = remember(tick) { ThemeStore.visualizer(context) }
+    val modes = listOf("Spectrum", "Wave", "Pulse")
+    SectionLabel("Player visualizer")
+    modes.forEachIndexed { index, name ->
+        LinkRow(
+            title = if (index == selected) "✓ $name" else name,
+            subtitle = when (index) {
+                ThemeStore.WAVE -> "Travelling wave animation"
+                ThemeStore.PULSE -> "Synchronized pulse animation"
+                else -> "Album-shaped spectrum bars"
+            },
+        ) {
+            ThemeStore.setVisualizer(context, index)
+            tick++
+            onChanged()
+        }
     }
 }
 
