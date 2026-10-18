@@ -23,6 +23,7 @@ import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -193,6 +194,7 @@ private fun LibraryPage(songCount: Int, onRescan: () -> Unit) {
     val context = LocalContext.current
     var tick by remember { mutableIntStateOf(0) }
     var seconds by remember(tick) { mutableIntStateOf(AppSettings.minTrackSeconds(context)) }
+    var excluded by remember(tick) { mutableStateOf(AppSettings.excludedFolders(context).joinToString("\n")) }
 
     LinkRow("Rescan", "Songs: $songCount") { onRescan() }
     SliderRow(
@@ -204,8 +206,20 @@ private fun LibraryPage(songCount: Int, onRescan: () -> Unit) {
         seconds = it.roundToInt()
         AppSettings.putInt(context, AppSettings.K_MIN_SECONDS, seconds)
     }
+    TextField(
+        value = excluded,
+        onValueChange = {
+            excluded = it
+            AppSettings.saveExcludedFolders(context, it)
+        },
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
+        label = { Text("Excluded folders") },
+        supportingText = { Text("One absolute folder path per line. Tap Rescan after changing.") },
+        minLines = 2,
+    )
     LinkRow("Restore Defaults", null) {
-        AppSettings.restore(context, AppSettings.K_MIN_SECONDS)
+        AppSettings.restore(context, AppSettings.K_MIN_SECONDS, AppSettings.K_EXCLUDED_FOLDERS)
+        excluded = ""
         tick++
     }
 }

@@ -18,6 +18,7 @@ object MusicScanner {
     @Suppress("DEPRECATION")
     fun getSongs(context: Context): List<Song> {
         val songs = ArrayList<Song>()
+        val excludedFolders = AppSettings.excludedFolders(context)
         val collection: Uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)
         } else {
@@ -70,6 +71,7 @@ object MusicScanner {
             while (c.moveToNext()) {
                 val id = c.getLong(idCol)
                 val path = text(c, dataCol) ?: ""
+                if (excludedFolders.any { path == it || path.startsWith("$it/") }) continue
                 val artist = clean(text(c, artistCol), "Unknown artist")
                 val uri = ContentUris.withAppendedId(collection, id)
                 val gain = if (AppSettings.replayGainMode(context) > 0) {

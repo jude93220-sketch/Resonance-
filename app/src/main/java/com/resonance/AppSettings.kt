@@ -15,6 +15,7 @@ object AppSettings {
     const val K_CROSSFADE_MS = "crossfade_ms"
     const val K_SWIPE_TRACKS = "swipe_tracks"
     const val K_REPLAY_GAIN_MODE = "replay_gain_mode"
+    const val K_EXCLUDED_FOLDERS = "excluded_folders"
 
     fun prefs(context: Context): SharedPreferences =
         context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -27,6 +28,13 @@ object AppSettings {
     fun crossfadeMs(c: Context) = prefs(c).getInt(K_CROSSFADE_MS, 0)
     fun swipeTracks(c: Context) = prefs(c).getBoolean(K_SWIPE_TRACKS, true)
     fun replayGainMode(c: Context) = prefs(c).getInt(K_REPLAY_GAIN_MODE, 0).coerceIn(0, 2)
+    fun excludedFolders(c: Context): List<String> = prefs(c).getString(K_EXCLUDED_FOLDERS, "")
+        ?.lines()
+        ?.map { it.trim().trimEnd('/') }
+        ?.filter { it.isNotBlank() }
+        ?: emptyList()
+    fun saveExcludedFolders(c: Context, value: String) =
+        prefs(c).edit().putString(K_EXCLUDED_FOLDERS, value).apply()
 
     fun putBool(c: Context, key: String, v: Boolean) = prefs(c).edit().putBoolean(key, v).apply()
     fun putInt(c: Context, key: String, v: Int) = prefs(c).edit().putInt(key, v).apply()
