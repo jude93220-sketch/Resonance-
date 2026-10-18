@@ -102,6 +102,8 @@ fun PlaylistsScreen(
     onOpen: (Playlist) -> Unit,
     onCreate: (String) -> Unit,
     onDelete: (Playlist) -> Unit,
+    onImport: () -> Unit,
+    onExport: (Playlist) -> Unit,
 ) {
     var showCreate by remember { mutableStateOf(false) }
     var newName by remember { mutableStateOf("") }
@@ -119,6 +121,7 @@ fun PlaylistsScreen(
                 }
             }
         }
+        TextButton(onClick = onImport) { Text("Import M3U") }
         Spacer(Modifier.size(8.dp))
         if (playlists.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -127,7 +130,7 @@ fun PlaylistsScreen(
         } else {
             LazyColumn(Modifier.fillMaxSize()) {
                 itemsIndexed(playlists, key = { _, p -> p.id }) { _, p ->
-                    PlaylistRow(p, onTap = { onOpen(p) }, onLong = { deleteTarget = p })
+                    PlaylistRow(p, onTap = { onOpen(p) }, onLong = { deleteTarget = p }, onExport = { onExport(p) })
                 }
             }
         }
@@ -176,7 +179,7 @@ fun PlaylistsScreen(
 }
 
 @Composable
-private fun PlaylistRow(p: Playlist, onTap: () -> Unit, onLong: () -> Unit) {
+private fun PlaylistRow(p: Playlist, onTap: () -> Unit, onLong: () -> Unit, onExport: () -> Unit) {
     val tap by rememberUpdatedState(onTap)
     val long by rememberUpdatedState(onLong)
     Row(
@@ -203,6 +206,7 @@ private fun PlaylistRow(p: Playlist, onTap: () -> Unit, onLong: () -> Unit) {
                 color = Color(0xFFD0D0D0), fontSize = 13.sp,
             )
         }
+        TextButton(onClick = onExport) { Text("Export") }
     }
 }
 

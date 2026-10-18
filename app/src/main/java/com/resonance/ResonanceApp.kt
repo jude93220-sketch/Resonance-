@@ -131,6 +131,16 @@ fun ResonanceApp(remote: PlayerRemote) {
     var playlistTarget by remember { mutableStateOf<List<Long>?>(null) }
     var folderMenuSong by remember { mutableStateOf<Song?>(null) }
     var settingsTick by remember { mutableIntStateOf(0) }
+    var exportTarget by remember { mutableStateOf<Playlist?>(null) }
+    val smartPlaylists = remember(songs, settingsTick) {
+        SmartPlaylistStore.all(context).map { rule ->
+            Playlist(
+                id = "smart:${rule.id}",
+                name = "${rule.name} · Smart",
+                songIds = SmartPlaylistStore.evaluate(context, rule, songs).map { it.id },
+            )
+        }
+    }
 
     val launcher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -165,6 +175,32 @@ fun ResonanceApp(remote: PlayerRemote) {
     }
 
     val songById = remember(songs) { songs.associateBy { it.id } }
+    val importPlaylistLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        if (uri != null) {
+            val name = uri.lastPathSegment?.substringAfterLast('/')?.substringBeforeLast('.') ?: "Imported playlist"
+            val count = PlaylistStore.importM3u(context, uri, name, songs)
+            playlists = PlaylistStore.all(context)
+            toast("Imported $count matching songs")
+        }
+    }
+    val exportPlaylistLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("audio/x-mpegurl"),
+    ) { uri ->
+        val target = exportTarget
+        if (uri != null && target != null) {
+            try {
+                context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use {
+                    it.write(PlaylistStore.toM3u(target, songById))
+                }
+                toast("Playlist exported")
+            } catch (_: Throwable) {
+                toast("Could not export playlist")
+            }
+        }
+        exportTarget = null
+    }
     val current = songById[remote.currentId]
     val tint = rememberArtTint(current)
 
@@ -358,7 +394,7 @@ fun ResonanceApp(remote: PlayerRemote) {
                 )
 
                 is Route.Playlists -> PlaylistsScreen(
-                    playlists = playlists,
+                    playlists = playlists + smartPlaylists,
                     onBack = { pop() },
                     onOpen = { p ->
                         val list = p.songIds.mapNotNull { songById[it] }
@@ -369,8 +405,21 @@ fun ResonanceApp(remote: PlayerRemote) {
                         playlists = PlaylistStore.all(context)
                     },
                     onDelete = { p ->
-                        PlaylistStore.delete(context, p.id)
-                        playlists = PlaylistStore.all(context)
+                        if (p.id.startsWith("smart:")) {
+                            SmartPlaylistStore.delete(context, p.id.removePrefix("smart:"))
+                            settingsTick++
+                        } else {
+                            PlaylistStore.delete(context, p.id)
+                            playlists = PlaylistStore.all(context)
+                        }
+                    },
+                    onImport = { importPlaylistLauncher.launch(arrayOf("audio/x-mpegurl", "audio/mpegurl", "text/plain")) },
+                    onExport = { p ->
+                        if (p.id.startsWith("smart:")) toast("Smart playlists cannot be exported yet")
+                        else {
+                            exportTarget = p
+                            exportPlaylistLauncher.launch("${p.name}.m3u")
+                        }
                     },
                 )
 

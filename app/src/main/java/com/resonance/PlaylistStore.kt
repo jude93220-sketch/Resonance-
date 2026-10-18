@@ -1,6 +1,8 @@
 package com.resonance
 
 import android.content.Context
+import android.net.Uri
+import java.util.Locale
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -69,5 +71,35 @@ object PlaylistStore {
         save(context, all(context).map { p ->
             if (p.id == id) p.copy(songIds = p.songIds.filter { it != songId }) else p
         })
+    }
+
+    fun toM3u(playlist: Playlist, songsById: Map<Long, Song>): String = buildString {
+        appendLine("#EXTM3U")
+        playlist.songIds.forEach { id ->
+            val song = songsById[id] ?: return@forEach
+            appendLine("#EXTINF:${song.duration / 1000},${song.artist} - ${song.title}")
+            appendLine(song.path.ifBlank { song.uri.toString() })
+        }
+    }
+
+    fun importM3u(context: Context, uri: Uri, name: String, songs: List<Song>): Int {
+        val lines = try {
+            context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readLines() }
+                ?: emptyList()
+        } catch (_: Throwable) {
+            emptyList()
+        }
+        val candidates = lines.filter { it.isNotBlank() && !it.startsWith("#") }
+        val normalized = songs.associateBy { it.path.lowercase(Locale.ROOT) }
+        val ids = candidates.mapNotNull { line ->
+            val direct = normalized[line.trim().lowercase(Locale.ROOT)]
+            direct?.id ?: songs.firstOrNull {
+                it.uri.toString() == line.trim() ||
+                    it.path.substringAfterLast('/').equals(line.trim().substringAfterLast('/'), true)
+            }?.id
+        }.distinct()
+        val playlist = create(context, name.ifBlank { "Imported playlist" })
+        if (ids.isNotEmpty()) addSongs(context, playlist.id, ids)
+        return ids.size
     }
 }

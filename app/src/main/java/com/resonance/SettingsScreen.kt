@@ -86,6 +86,7 @@ fun SettingsScreen(
                     LinkRow("ReplayGain", "Normalize track or album loudness") { page = "ReplayGain" }
                     LinkRow("Playback", "Gapless playback and track transitions") { page = "Playback" }
                     LinkRow("Library", "Scanner and library options") { page = "Library" }
+                    LinkRow("Smart Playlists", "Rules for ratings, plays, recency, and metadata") { page = "Smart Playlists" }
                     LinkRow("Headset/Bluetooth", "Connection behaviour") { page = "Headset/Bluetooth" }
                     LinkRow("Lock Screen", "Coming soon", enabled = false) { }
                     LinkRow("Look and Feel", "Screen options") { page = "Look and Feel" }
@@ -99,6 +100,7 @@ fun SettingsScreen(
                 "ReplayGain" -> ReplayGainPage()
                 "Playback" -> PlaybackPage(onChanged)
                 "Library" -> LibraryPage(songCount, onRescan)
+                "Smart Playlists" -> SmartPlaylistsPage(onChanged)
                 "Headset/Bluetooth" -> HeadsetPage(onChanged)
                 "Look and Feel" -> LookPage(onChanged)
                 "Themes" -> ThemesPage(onChanged)
@@ -221,6 +223,37 @@ private fun LibraryPage(songCount: Int, onRescan: () -> Unit) {
         AppSettings.restore(context, AppSettings.K_MIN_SECONDS, AppSettings.K_EXCLUDED_FOLDERS)
         excluded = ""
         tick++
+    }
+}
+
+@Composable
+private fun SmartPlaylistsPage(onChanged: () -> Unit) {
+    val context = LocalContext.current
+    var tick by remember { mutableIntStateOf(0) }
+    val existing = remember(tick) { SmartPlaylistStore.all(context) }
+    SectionLabel("Saved smart playlists")
+    existing.forEach { rule ->
+        LinkRow(rule.name, "Tap the playlist to view live results") {
+            SmartPlaylistStore.delete(context, rule.id)
+            tick++
+            onChanged()
+        }
+    }
+    SectionLabel("Add a rule")
+    LinkRow("Liked songs", "Songs marked with a thumbs-up") {
+        SmartPlaylistStore.add(context, SmartPlaylist(System.currentTimeMillis().toString(), "Liked songs", likedOnly = true))
+        tick++
+        onChanged()
+    }
+    LinkRow("Most played", "Songs started at least five times") {
+        SmartPlaylistStore.add(context, SmartPlaylist(System.currentTimeMillis().toString(), "Most played", minPlays = 5))
+        tick++
+        onChanged()
+    }
+    LinkRow("Recently added", "Music added in the last 30 days") {
+        SmartPlaylistStore.add(context, SmartPlaylist(System.currentTimeMillis().toString(), "Recently added", addedWithinDays = 30))
+        tick++
+        onChanged()
     }
 }
 
