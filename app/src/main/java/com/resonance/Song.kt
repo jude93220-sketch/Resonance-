@@ -19,6 +19,8 @@ data class Song(
     val composer: String,
     val albumArtist: String,
     val dateAdded: Long,
+    val replayGainTrackDb: Float? = null,
+    val replayGainAlbumDb: Float? = null,
 )
 
 /** Short file type shown in lists, e.g. "mp3". */

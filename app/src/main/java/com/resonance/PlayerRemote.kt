@@ -1,4 +1,5 @@
 package com.resonance
+import android.os.Bundle
 
 import android.content.ComponentName
 import android.content.ContentUris
@@ -33,6 +34,10 @@ fun Song.toMediaItem(): MediaItem {
                 .setArtist(artist)
                 .setAlbumTitle(album)
                 .setArtworkUri(art)
+                .setExtras(Bundle().apply {
+                    putFloat("resonance_replaygain_track", replayGainTrackDb ?: Float.NaN)
+                    putFloat("resonance_replaygain_album", replayGainAlbumDb ?: Float.NaN)
+                })
                 .build()
         )
         .build()

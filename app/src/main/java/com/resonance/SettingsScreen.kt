@@ -82,6 +82,7 @@ fun SettingsScreen(
             when (page) {
                 null -> {
                     LinkRow("Audio", "Equalizer, audio engine info") { page = "Audio" }
+                    LinkRow("ReplayGain", "Normalize track or album loudness") { page = "ReplayGain" }
                     LinkRow("Playback", "Gapless playback and track transitions") { page = "Playback" }
                     LinkRow("Library", "Scanner and library options") { page = "Library" }
                     LinkRow("Headset/Bluetooth", "Connection behaviour") { page = "Headset/Bluetooth" }
@@ -94,6 +95,7 @@ fun SettingsScreen(
                 }
 
                 "Audio" -> AudioPage(onOpenEqualizer)
+                "ReplayGain" -> ReplayGainPage()
                 "Playback" -> PlaybackPage(onChanged)
                 "Library" -> LibraryPage(songCount, onRescan)
                 "Headset/Bluetooth" -> HeadsetPage(onChanged)
@@ -126,6 +128,34 @@ private fun AudioPage(onOpenEqualizer: () -> Unit) {
         EqStore.resetAll(context)
         tick++
     }
+}
+
+@Composable
+private fun ReplayGainPage() {
+    val context = LocalContext.current
+    var tick by remember { mutableIntStateOf(0) }
+    val selected = remember(tick) { AppSettings.replayGainMode(context) }
+    val modes = listOf(
+        "Off" to "Play files at their stored level",
+        "Track gain" to "Normalize each track independently",
+        "Album gain" to "Keep an album's tracks at a consistent level",
+    )
+    SectionLabel("ReplayGain")
+    modes.forEachIndexed { index, entry ->
+        LinkRow(
+            title = if (index == selected) "✓ ${entry.first}" else entry.first,
+            subtitle = entry.second,
+        ) {
+            AppSettings.putInt(context, AppSettings.K_REPLAY_GAIN_MODE, index)
+            tick++
+        }
+    }
+    Text(
+        "Rescan the library after changing this setting so ReplayGain tags are loaded.",
+        color = SubGrey,
+        fontSize = 13.sp,
+        modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
+    )
 }
 
 @Composable

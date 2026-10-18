@@ -71,6 +71,12 @@ object MusicScanner {
                 val id = c.getLong(idCol)
                 val path = text(c, dataCol) ?: ""
                 val artist = clean(text(c, artistCol), "Unknown artist")
+                val uri = ContentUris.withAppendedId(collection, id)
+                val gain = if (AppSettings.replayGainMode(context) > 0) {
+                    ReplayGain.read(context, uri)
+                } else {
+                    ReplayGain.Values(null, null)
+                }
                 songs.add(
                     Song(
                         id = id,
@@ -79,7 +85,7 @@ object MusicScanner {
                         album = clean(text(c, albumCol), "Unknown album"),
                         albumId = if (albumIdCol >= 0) c.getLong(albumIdCol) else 0L,
                         duration = if (durCol >= 0) c.getLong(durCol) else 0L,
-                        uri = ContentUris.withAppendedId(collection, id),
+                        uri = uri,
                         path = path,
                         folder = path.substringBeforeLast('/', ""),
                         trackNumber = if (trackCol >= 0) c.getInt(trackCol) % 1000 else 0,
@@ -89,6 +95,8 @@ object MusicScanner {
                         composer = clean(text(c, composerCol), ""),
                         albumArtist = clean(text(c, albumArtistCol), artist),
                         dateAdded = if (addedCol >= 0) c.getLong(addedCol) else 0L,
+                        replayGainTrackDb = gain.trackDb,
+                        replayGainAlbumDb = gain.albumDb,
                     )
                 )
             }

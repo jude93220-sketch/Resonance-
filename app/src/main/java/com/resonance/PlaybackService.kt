@@ -22,6 +22,7 @@ import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import kotlin.math.max
 import kotlin.math.roundToInt
+import kotlin.math.pow
 
 /**
  * Runs the music player in the background: keeps playing when the app is closed,
@@ -43,6 +44,7 @@ class PlaybackService : MediaSessionService(), SharedPreferences.OnSharedPrefere
     private var virtualizer: Virtualizer? = null
     private var lastMediaId: String? = null
     private var fadeInStartedAt = 0L
+    private var replayGainMultiplier = 1f
 
     private val handler = Handler(Looper.getMainLooper())
     private val sleepRunnable = Runnable {
@@ -98,6 +100,7 @@ class PlaybackService : MediaSessionService(), SharedPreferences.OnSharedPrefere
                     }
                 }
                 lastMediaId = newId
+                updateReplayGain(mediaItem)
                 savePlaybackState()
                 notifyWidget()
             }
@@ -132,6 +135,7 @@ class PlaybackService : MediaSessionService(), SharedPreferences.OnSharedPrefere
             .setSessionActivity(sessionActivity)
             .build()
         restorePlaybackState(exo)
+        updateReplayGain(exo.currentMediaItem)
 
         setupEffects(exo.audioSessionId)
         AudioPrefs.prefs(this).registerOnSharedPreferenceChangeListener(this)
@@ -194,6 +198,22 @@ class PlaybackService : MediaSessionService(), SharedPreferences.OnSharedPrefere
         sendBroadcast(Intent(ResonanceWidget.ACTION_REFRESH).setPackage(packageName))
     }
 
+    private fun updateReplayGain(item: MediaItem?) {
+        val mode = AppSettings.replayGainMode(this)
+        if (mode == 0 || item == null) {
+            replayGainMultiplier = 1f
+            return
+        }
+        val extras = item.mediaMetadata.extras
+        val key = if (mode == 1) "resonance_replaygain_track" else "resonance_replaygain_album"
+        val db = extras?.getFloat(key, Float.NaN) ?: Float.NaN
+        replayGainMultiplier = if (db.isFinite()) {
+            10f.pow(db / 20f).coerceIn(0.25f, 1.5f)
+        } else {
+            1f
+        }
+    }
+
     /**
      * Media3 1.4 has no built-in two-deck crossfader. This preserves queue semantics and provides
      * a safe transition ramp: the outgoing item fades down before the queue advances, and the
@@ -204,14 +224,14 @@ class PlaybackService : MediaSessionService(), SharedPreferences.OnSharedPrefere
         val exo = player ?: return
         val fade = AppSettings.crossfadeMs(this)
         if (fade <= 0) {
-            if (exo.volume != 1f) exo.volume = 1f
+            if (exo.volume != replayGainMultiplier) exo.volume = replayGainMultiplier
             fadeInStartedAt = 0L
             return
         }
         if (fadeInStartedAt > 0L) {
             val fraction =
                 ((System.currentTimeMillis() - fadeInStartedAt).toFloat() / fade).coerceIn(0f, 1f)
-            exo.volume = fraction
+            exo.volume = replayGainMultiplier * fraction
             if (fraction >= 1f) fadeInStartedAt = 0L
             return
         }
@@ -219,9 +239,9 @@ class PlaybackService : MediaSessionService(), SharedPreferences.OnSharedPrefere
         val hasFollowingItem = exo.hasNextMediaItem() || exo.repeatMode == Player.REPEAT_MODE_ALL
         val remaining = exo.duration - exo.currentPosition
         if (hasFollowingItem && remaining in 1..fade.toLong()) {
-            exo.volume = (remaining.toFloat() / fade).coerceIn(0f, 1f)
+            exo.volume = replayGainMultiplier * (remaining.toFloat() / fade).coerceIn(0f, 1f)
         } else if (remaining > fade) {
-            exo.volume = 1f
+            exo.volume = replayGainMultiplier
         }
     }
 
