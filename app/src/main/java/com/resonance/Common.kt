@@ -225,16 +225,10 @@ fun ArtCard(song: Song?, modifier: Modifier = Modifier) {
         bitmap = if (song == null) null else ArtLoader.load(context, song, 1024)
     }
 
-    Box(modifier.background(Color(0x33000000)), contentAlignment = Alignment.Center) {
+    Box(modifier.background(Color.Black), contentAlignment = Alignment.Center) {
         val b = bitmap
         if (b != null) {
             val img = b.asImageBitmap()
-            Image(
-                bitmap = img,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize().blur(32.dp),
-            )
             Image(
                 bitmap = img,
                 contentDescription = null,

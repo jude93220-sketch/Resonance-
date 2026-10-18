@@ -28,6 +28,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material.icons.filled.FastRewind
+import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -139,30 +140,12 @@ fun NowPlayingScreen(
             .fillMaxSize()
             .padding(horizontal = 16.dp)
     ) {
-        Spacer(Modifier.height(10.dp))
-        Canvas(Modifier.fillMaxWidth().height(54.dp).padding(horizontal = 8.dp)) {
-            val barWidth = 4.dp.toPx()
-            val gap = 5.dp.toPx()
-            val count = (size.width / (barWidth + gap)).toInt()
-            val center = size.height / 2f
-            for (i in 0 until count) {
-                val pulse = (sin(phase + i * 0.42f) * 0.5f + 0.5f)
-                val level = if (isPlaying) 0.2f + pulse * 0.72f else 0.25f
-                val x = i * (barWidth + gap) + barWidth / 2f
-                drawLine(
-                    color = palette.accent.copy(alpha = 0.35f + (i % 4) * 0.12f),
-                    start = Offset(x, center - size.height * level / 2f),
-                    end = Offset(x, center + size.height * level / 2f),
-                    strokeWidth = barWidth,
-                )
-            }
-        }
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(108.dp))
 
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .aspectRatio(if (playerLayout == 0) 1.08f else 1.18f)
+                .aspectRatio(1.77f)
                 .clip(RoundedCornerShape(28.dp))
                 .pointerInput(song.id) {
                     detectTapGestures(onTap = { onArtTap() })
@@ -184,7 +167,7 @@ fun NowPlayingScreen(
             }
         }
 
-        Spacer(Modifier.weight(if (playerLayout == 0) 0.4f else 0.15f))
+        Spacer(Modifier.height(18.dp))
 
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -243,6 +226,11 @@ fun NowPlayingScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             PillIconButton(
+                Icons.Filled.GraphicEq, "Visualizer", width = 64.dp,
+                tint = palette.accent, onClick = onMore
+            )
+            Spacer(Modifier.weight(1f))
+            PillIconButton(
                 Icons.Filled.Timer, "Sleep timer", width = 64.dp,
                 tint = if (sleepActive) palette.accent else Color.White, onClick = onOpenSleep
             )
@@ -260,10 +248,10 @@ fun NowPlayingScreen(
             )
         }
 
-        Spacer(Modifier.weight(0.6f))
+        Spacer(Modifier.height(14.dp))
 
         Box(
-            modifier = Modifier.fillMaxWidth().height(130.dp),
+            modifier = Modifier.fillMaxWidth().height(292.dp),
             contentAlignment = Alignment.Center
         ) {
             Canvas(
