@@ -71,6 +71,8 @@ import androidx.media3.common.Player
 import kotlin.math.abs
 import kotlin.math.sin
 import kotlin.random.Random
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 private val PillDark = Color(0x66000000)
 
@@ -105,7 +107,11 @@ fun NowPlayingScreen(
     var isLiked by remember(song.id) { mutableStateOf(RatingManager.isLiked(context, song.id)) }
     var isDisliked by remember(song.id) { mutableStateOf(RatingManager.isDisliked(context, song.id)) }
     var formatText by remember(song.id) { mutableStateOf("") }
-    LaunchedEffect(song.id) { formatText = AudioInfo.label(context, song) }
+    var lyrics by remember(song.id) { mutableStateOf<List<LyricsStore.Line>>(emptyList()) }
+    LaunchedEffect(song.id) {
+        formatText = AudioInfo.label(context, song)
+        lyrics = withContext(Dispatchers.IO) { LyricsStore.load(context, song) }
+    }
 
     val progress = if (durationMs > 0) (positionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f) else 0f
     var dragFraction by remember { mutableStateOf<Float?>(null) }
@@ -351,6 +357,18 @@ fun NowPlayingScreen(
                     color = Color(0xFFD0D0D0), fontSize = 11.sp, fontWeight = FontWeight.Bold
                 )
             }
+        }
+
+        if (lyrics.isNotEmpty()) {
+            val currentLine = lyrics.lastOrNull { it.timeMs <= shownElapsed } ?: lyrics.first()
+            Text(
+                currentLine.text,
+                color = palette.accent,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 2,
+                modifier = Modifier.align(Alignment.CenterHorizontally).padding(horizontal = 20.dp),
+            )
         }
 
         Spacer(Modifier.height(10.dp))

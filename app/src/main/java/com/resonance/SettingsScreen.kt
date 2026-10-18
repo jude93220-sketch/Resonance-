@@ -1,5 +1,7 @@
 package com.resonance
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -24,6 +26,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -83,6 +86,7 @@ fun SettingsScreen(
             when (page) {
                 null -> {
                     LinkRow("Audio", "Equalizer, audio engine info") { page = "Audio" }
+                    LinkRow("Output Profiles", "Per-device EQ and AutoEQ presets") { page = "Output Profiles" }
                     LinkRow("ReplayGain", "Normalize track or album loudness") { page = "ReplayGain" }
                     LinkRow("Playback", "Gapless playback and track transitions") { page = "Playback" }
                     LinkRow("Library", "Scanner and library options") { page = "Library" }
@@ -97,6 +101,7 @@ fun SettingsScreen(
                 }
 
                 "Audio" -> AudioPage(onOpenEqualizer)
+                "Output Profiles" -> OutputProfilesPage()
                 "ReplayGain" -> ReplayGainPage()
                 "Playback" -> PlaybackPage(onChanged)
                 "Library" -> LibraryPage(songCount, onRescan)
@@ -113,6 +118,36 @@ fun SettingsScreen(
 }
 
 // --------------------------------------------------------------------- pages
+
+@Composable
+private fun OutputProfilesPage() {
+    val context = LocalContext.current
+    var tick by remember { mutableIntStateOf(0) }
+    var importTarget by remember { mutableStateOf("wired") }
+    val importer = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            val text = try { context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } } catch (_: Throwable) { null }
+            val name = uri.lastPathSegment?.substringAfterLast('/') ?: "AutoEQ preset"
+            val profile = text?.let { AutoEqImporter.parse(name, it) }
+            if (profile != null) {
+                OutputProfileStore.save(context, profile.copy(key = importTarget))
+                tick++
+            }
+        }
+    }
+    SectionLabel("Output profiles")
+    listOf("speaker" to "Phone speaker", "wired" to "Wired headphones", "bluetooth" to "Bluetooth", "usb" to "USB DAC").forEach { (key, label) ->
+        val profile = remember(tick, key) { OutputProfileStore.profile(context, key) }
+        LinkRow(label, if (profile.autoEqName.isBlank()) "No AutoEQ preset" else profile.autoEqName) {
+            importTarget = key
+            importer.launch(arrayOf("text/plain", "text/*"))
+        }
+    }
+    TextButton(onClick = {
+        importTarget = "wired"
+        importer.launch(arrayOf("text/plain", "text/*"))
+    }) { Text("Import AutoEQ for wired headphones") }
+}
 
 @Composable
 private fun AudioPage(onOpenEqualizer: () -> Unit) {
@@ -136,6 +171,7 @@ private fun AudioPage(onOpenEqualizer: () -> Unit) {
         tick++
     }
     LinkRow("Audio Info", info) { tick++ }
+    LinkRow("Output Diagnostics", OutputDiagnostics.summary(context)) { tick++ }
     LinkRow("Reset equalizer", "Flat bands, preamp 0, bass 0%, treble 50%") {
         EqStore.resetAll(context)
         tick++
