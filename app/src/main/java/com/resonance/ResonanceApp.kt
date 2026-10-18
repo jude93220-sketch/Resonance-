@@ -53,6 +53,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -172,6 +173,8 @@ fun ResonanceApp(remote: PlayerRemote) {
     LaunchedEffect(keepOn) { hostView.keepScreenOn = keepOn }
     val bgIntensity = remember(settingsTick) { AppSettings.bgIntensity(context) }
     val bgGradient = remember(settingsTick) { AppSettings.bgGradient(context) }
+    val palette = remember(settingsTick) { ThemeStore.theme(context) }
+    val visualizerMode = remember(settingsTick) { ThemeStore.visualizer(context) }
 
     fun push(r: Route) {
         stack.add(r)
@@ -207,11 +210,11 @@ fun ResonanceApp(remote: PlayerRemote) {
     }
 
     val route = stack.last()
-    val bgTint = lerp(Color.Black, tint, bgIntensity / 100f)
+    val bgTint = lerp(palette.background, tint, bgIntensity / 100f)
     val bg = if (bgGradient == 0) {
         Brush.verticalGradient(listOf(bgTint, bgTint))
     } else {
-        Brush.verticalGradient(listOf(bgTint, lerp(bgTint, Color.Black, bgGradient / 9f), Color.Black))
+        Brush.verticalGradient(listOf(bgTint, lerp(bgTint, palette.background, bgGradient / 9f), palette.background))
     }
 
     val playList: (List<Song>, Int) -> Unit = { list, index -> remote.playQueue(list, index) }
@@ -226,6 +229,7 @@ fun ResonanceApp(remote: PlayerRemote) {
     }
     val addToPlaylist: (List<Song>) -> Unit = { list -> playlistTarget = list.map { it.id } }
 
+    CompositionLocalProvider(LocalResonancePalette provides palette) {
     Column(
         Modifier
             .fillMaxSize()
@@ -408,6 +412,8 @@ fun ResonanceApp(remote: PlayerRemote) {
                     PlayerHost(
                         remote = remote,
                         song = current,
+                        visualizerMode = visualizerMode,
+                        swipeTracks = AppSettings.swipeTracks(context),
                         sleepEnd = sleepEnd,
                         onOpenSleep = { showSleep = true },
                         onMore = { showPlayerMenu = true },
@@ -442,6 +448,7 @@ fun ResonanceApp(remote: PlayerRemote) {
             onSearch = { reset(Route.Home, Route.Search) },
             onMenu = { showMenu = true },
         )
+    }
     }
 
     // ------------------------------------------------------------------ dialogs
@@ -556,6 +563,8 @@ fun ResonanceApp(remote: PlayerRemote) {
 private fun PlayerHost(
     remote: PlayerRemote,
     song: Song,
+    visualizerMode: Int,
+    swipeTracks: Boolean,
     sleepEnd: Long,
     onOpenSleep: () -> Unit,
     onMore: () -> Unit,
@@ -563,6 +572,8 @@ private fun PlayerHost(
 ) {
     NowPlayingScreen(
         song = song,
+        visualizerMode = visualizerMode,
+        swipeTracks = swipeTracks,
         isPlaying = remote.isPlaying,
         positionMs = remote.positionMs,
         durationMs = if (remote.durationMs > 0) remote.durationMs else song.duration,

@@ -12,6 +12,8 @@ object AppSettings {
     const val K_KEEP_ON = "keep_screen_on"
     const val K_BG_INTENSITY = "bg_intensity"
     const val K_BG_GRADIENT = "bg_gradient"
+    const val K_CROSSFADE_MS = "crossfade_ms"
+    const val K_SWIPE_TRACKS = "swipe_tracks"
 
     fun prefs(context: Context): SharedPreferences =
         context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -21,6 +23,8 @@ object AppSettings {
     fun keepScreenOn(c: Context) = prefs(c).getBoolean(K_KEEP_ON, false)
     fun bgIntensity(c: Context) = prefs(c).getInt(K_BG_INTENSITY, 100)
     fun bgGradient(c: Context) = prefs(c).getInt(K_BG_GRADIENT, 6)
+    fun crossfadeMs(c: Context) = prefs(c).getInt(K_CROSSFADE_MS, 0)
+    fun swipeTracks(c: Context) = prefs(c).getBoolean(K_SWIPE_TRACKS, true)
 
     fun putBool(c: Context, key: String, v: Boolean) = prefs(c).edit().putBoolean(key, v).apply()
     fun putInt(c: Context, key: String, v: Int) = prefs(c).edit().putInt(key, v).apply()

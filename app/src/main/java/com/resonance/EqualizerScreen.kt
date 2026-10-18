@@ -104,6 +104,8 @@ fun EqualizerScreen(onBack: () -> Unit) {
     var preamp by remember { mutableStateOf(EqStore.preamp(context)) }
     var bass by remember { mutableIntStateOf(EqStore.bass(context)) }
     var treble by remember { mutableIntStateOf(EqStore.treble(context)) }
+    var bassBoost by remember { mutableIntStateOf(EqStore.bassBoost(context)) }
+    var stereoWidth by remember { mutableIntStateOf(EqStore.stereoWidth(context)) }
     var presetName by remember { mutableStateOf(EqStore.presetName(context)) }
     var userPresets by remember { mutableStateOf(EqStore.userPresets(context)) }
     var engine by remember { mutableStateOf(EqStore.engine(context)) }
@@ -257,6 +259,8 @@ fun EqualizerScreen(onBack: () -> Unit) {
                 append(if (eqOn) "  EQ ${EqStore.FREQS.size}" else "  NO EQ")
                 if (toneOn) append("  TON")
                 if (limitOn) append("  LMT")
+                if (bassBoost > 0) append("  BB")
+                if (stereoWidth > 0) append("  ST")
             }
             Row(
                 Modifier
@@ -338,6 +342,8 @@ fun EqualizerScreen(onBack: () -> Unit) {
                                         preamp = 0f
                                         bass = 0
                                         treble = 50
+                                        bassBoost = 0
+                                        stereoWidth = 0
                                         presetName = "Flat"
                                     },
                                 )
@@ -374,6 +380,38 @@ fun EqualizerScreen(onBack: () -> Unit) {
                                 onReset = {
                                     treble = 50
                                     EqStore.saveTreble(context, 50)
+                                },
+                                modifier = Modifier.size(92.dp),
+                            )
+                        }
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("Bass boost  $bassBoost%", color = Color(0xFFBDBDBD), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                            Knob(
+                                value = bassBoost, color = Color(0xFFFF7043),
+                                onChange = {
+                                    bassBoost = it
+                                    EqStore.saveBassBoost(context, it)
+                                },
+                                onReset = {
+                                    bassBoost = 0
+                                    EqStore.saveBassBoost(context, 0)
+                                },
+                                modifier = Modifier.size(92.dp),
+                            )
+                        }
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("Stereo width  $stereoWidth%", color = Color(0xFFBDBDBD), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                            Knob(
+                                value = stereoWidth, color = Color(0xFF42A5F5),
+                                onChange = {
+                                    stereoWidth = it
+                                    EqStore.saveStereoWidth(context, it)
+                                },
+                                onReset = {
+                                    stereoWidth = 0
+                                    EqStore.saveStereoWidth(context, 0)
                                 },
                                 modifier = Modifier.size(92.dp),
                             )
