@@ -25,6 +25,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -739,8 +741,8 @@ private fun SearchScreen(
                 Text("No results", color = Color(0xFF9A9A9A), fontSize = 15.sp)
             }
         } else {
-            androidx.compose.foundation.lazy.LazyColumn(Modifier.fillMaxSize()) {
-                androidx.compose.foundation.lazy.itemsIndexed(results, key = { _, s -> s.id }) { index, song ->
+            LazyColumn(Modifier.fillMaxSize()) {
+                itemsIndexed(results, key = { _, s -> s.id }) { index, song ->
                     SongRow(
                         song = song,
                         isCurrent = song.id == current?.id,
