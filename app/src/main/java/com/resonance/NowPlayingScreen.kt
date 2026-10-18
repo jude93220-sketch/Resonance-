@@ -47,6 +47,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.animateFloat
@@ -59,6 +60,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
@@ -124,7 +126,7 @@ fun NowPlayingScreen(
     val phase by transition.animateFloat(
         initialValue = 0f,
         targetValue = (2f * Math.PI).toFloat(),
-        animationSpec = infiniteRepeatable(tween(1100), RepeatMode.Restart),
+        animationSpec = infiniteRepeatable(tween(1800, easing = LinearEasing), RepeatMode.Restart),
         label = "visualizerPhase",
     )
 
@@ -301,20 +303,29 @@ fun NowPlayingScreen(
 
                 for (i in 0 until numBars) {
                     val base = bars[i % bars.size]
-                    val wave = (sin(phase + i * 0.38f) * 0.5f + 0.5f)
+                    val slowWave = sin(phase * 0.82f + i * 0.19f) * 0.5f + 0.5f
+                    val detailWave = sin(phase * 1.37f + i * 0.47f) * 0.5f + 0.5f
+                    val travellingWave = sin(phase * 0.58f - i * 0.12f) * 0.5f + 0.5f
+                    val pulse = (sin(phase * 0.44f) * 0.5f + 0.5f)
                     val level = when (visualizerMode) {
-                        ThemeStore.WAVE -> 0.25f + wave * 0.65f
-                        ThemeStore.PULSE -> 0.25f + ((sin(phase) * 0.5f + 0.5f) * 0.65f)
-                        else -> base * (if (isPlaying) 0.55f + wave * 0.65f else 1f)
-                    }.coerceIn(0.12f, 0.95f)
-                    val barHeight = size.height * level
+                        ThemeStore.WAVE -> 0.18f + slowWave * 0.42f + detailWave * 0.22f
+                        ThemeStore.PULSE -> 0.16f + pulse * 0.68f + detailWave * 0.10f
+                        else -> base * (0.30f + slowWave * 0.46f) + detailWave * 0.14f
+                    }
+                    val resting = if (isPlaying) 1f else 0.42f
+                    val barHeight = size.height * (level * resting).coerceIn(0.10f, 0.94f)
                     val x = i * (barWidth + gap) + barWidth / 2f
-                    val color = if (x < playedX) palette.accent else palette.visualizerRest
+                    val color = if (x < playedX) {
+                        palette.accent.copy(alpha = 0.76f + travellingWave * 0.24f)
+                    } else {
+                        palette.visualizerRest.copy(alpha = 0.45f + travellingWave * 0.35f)
+                    }
                     drawLine(
                         color = color,
                         start = Offset(x, centerY - barHeight / 2),
                         end = Offset(x, centerY + barHeight / 2),
-                        strokeWidth = barWidth
+                        strokeWidth = barWidth,
+                        cap = StrokeCap.Round,
                     )
                 }
             }
