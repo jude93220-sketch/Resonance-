@@ -147,6 +147,21 @@ fun NowPlayingScreen(
                 .fillMaxWidth()
                 .aspectRatio(1.77f)
                 .clip(RoundedCornerShape(28.dp))
+                .pointerInput(song.id, swipeTracks) {
+                    var dragDistance = 0f
+                    detectHorizontalDragGestures(
+                        onDragStart = { dragDistance = 0f },
+                        onHorizontalDrag = { change, amount ->
+                            dragDistance += amount
+                            change.consume()
+                        },
+                        onDragEnd = {
+                            if (swipeTracks && abs(dragDistance) >= gestureSensitivity.toFloat()) {
+                                if (dragDistance < 0f) onNext() else onPrev()
+                            }
+                        },
+                    )
+                }
                 .pointerInput(song.id) {
                     detectTapGestures(onTap = { onArtTap() })
                 },

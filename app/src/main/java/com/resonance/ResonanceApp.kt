@@ -114,7 +114,7 @@ private sealed interface Route {
 
 private sealed interface PlaybackSource {
     data object AllSongs : PlaybackSource
-    data class Folder(val path: String) : PlaybackSource
+    data class RouteOrigin(val route: Route) : PlaybackSource
 }
 
 data class TagValues(val title: String, val artist: String, val album: String, val genre: String)
@@ -162,6 +162,7 @@ fun ResonanceApp(remote: PlayerRemote) {
     var playlists by remember { mutableStateOf(PlaylistStore.all(context)) }
     var sleepEnd by remember { mutableLongStateOf(AudioPrefs.sleepEnd(context)) }
     val stack = remember { mutableStateListOf<Route>(Route.Home) }
+    var initialPlayerOpened by remember { mutableStateOf(false) }
     var showMenu by remember { mutableStateOf(false) }
     var showSleep by remember { mutableStateOf(false) }
     var showPlayerMenu by remember { mutableStateOf(false) }
@@ -211,6 +212,14 @@ fun ResonanceApp(remote: PlayerRemote) {
     }
 
     LaunchedEffect(Unit) { requestPermissions() }
+
+    LaunchedEffect(remote.currentId) {
+        if (!initialPlayerOpened && remote.currentId >= 0L) {
+            stack.clear()
+            stack.add(Route.Player)
+            initialPlayerOpened = true
+        }
+    }
 
     LaunchedEffect(granted, scanTick) {
         if (granted) {
@@ -306,13 +315,18 @@ fun ResonanceApp(remote: PlayerRemote) {
     }
 
     fun capturePlaybackSource() {
-        playbackSource = if (route is Route.FolderTree) PlaybackSource.Folder(route.path) else PlaybackSource.AllSongs
+        playbackSource = when (route) {
+            Route.Home, Route.Player, Route.Eq, Route.Settings -> PlaybackSource.AllSongs
+            else -> PlaybackSource.RouteOrigin(route)
+        }
     }
 
     fun goToPlaybackSource() {
         when (val source = playbackSource) {
             PlaybackSource.AllSongs -> reset(Route.Songs("All Songs", songs, Icons.Filled.MusicNote, alphabetical = true))
-            is PlaybackSource.Folder -> reset(Route.FolderTree(source.path))
+            is PlaybackSource.RouteOrigin -> {
+                if (source.route is Route.Search) reset(Route.Home, source.route) else reset(source.route)
+            }
         }
     }
 
@@ -523,7 +537,7 @@ fun ResonanceApp(remote: PlayerRemote) {
                         songById = songById,
                         currentIndex = remote.currentIndex,
                         onBack = { pop() },
-                        onJump = { i -> remote.jumpTo(i) },
+                        onJump = { i -> capturePlaybackSource(); remote.jumpTo(i) },
                         onRemove = { i -> remote.removeAt(i) },
                     )
                 }
