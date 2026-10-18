@@ -175,6 +175,8 @@ private fun PlaybackPage(onChanged: () -> Unit) {
     val context = LocalContext.current
     var tick by remember { mutableIntStateOf(0) }
     var crossfade by remember(tick) { mutableIntStateOf(AppSettings.crossfadeMs(context)) }
+    var tempo by remember(tick) { mutableIntStateOf(AppSettings.tempo(context)) }
+    var reverb by remember(tick) { mutableIntStateOf(AppSettings.reverb(context)) }
 
     SectionLabel("Transition")
     LinkRow(
@@ -193,8 +195,23 @@ private fun PlaybackPage(onChanged: () -> Unit) {
         AppSettings.putInt(context, AppSettings.K_CROSSFADE_MS, crossfade)
         onChanged()
     }
+    SliderRow(
+        title = "Tempo",
+        valueLabel = "${tempo}%",
+        value = tempo.toFloat(), range = 50f..150f, steps = 19,
+        footer = "Uses Media3 time scaling while preserving the current pitch.",
+    ) {
+        tempo = it.roundToInt()
+        AppSettings.setTempo(context, tempo)
+        onChanged()
+    }
+    LinkRow("Reverb", when (reverb) { 1 -> "Small room"; 2 -> "Medium room"; 3 -> "Large hall"; else -> "Off" }) {
+        reverb = (reverb + 1) % 4
+        AppSettings.setReverb(context, reverb)
+        onChanged()
+    }
     LinkRow("Restore Defaults", null) {
-        AppSettings.restore(context, AppSettings.K_CROSSFADE_MS)
+        AppSettings.restore(context, AppSettings.K_CROSSFADE_MS, AppSettings.K_TEMPO, AppSettings.K_REVERB)
         tick++
         onChanged()
     }

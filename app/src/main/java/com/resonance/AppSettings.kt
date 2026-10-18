@@ -19,6 +19,8 @@ object AppSettings {
     const val K_PLAYER_LAYOUT = "player_layout"
     const val K_GESTURE_SENSITIVITY = "gesture_sensitivity"
     const val K_WIDGET_STYLE = "widget_style"
+    const val K_TEMPO = "tempo_percent"
+    const val K_REVERB = "reverb_preset"
 
     fun prefs(context: Context): SharedPreferences =
         context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -44,6 +46,10 @@ object AppSettings {
     fun setGestureSensitivity(c: Context, value: Int) = prefs(c).edit().putInt(K_GESTURE_SENSITIVITY, value.coerceIn(40, 160)).apply()
     fun widgetStyle(c: Context) = prefs(c).getInt(K_WIDGET_STYLE, 0).coerceIn(0, 1)
     fun setWidgetStyle(c: Context, value: Int) = prefs(c).edit().putInt(K_WIDGET_STYLE, value.coerceIn(0, 1)).apply()
+    fun tempo(c: Context) = prefs(c).getInt(K_TEMPO, 100).coerceIn(50, 150)
+    fun setTempo(c: Context, value: Int) = prefs(c).edit().putInt(K_TEMPO, value.coerceIn(50, 150)).apply()
+    fun reverb(c: Context) = prefs(c).getInt(K_REVERB, 0).coerceIn(0, 3)
+    fun setReverb(c: Context, value: Int) = prefs(c).edit().putInt(K_REVERB, value.coerceIn(0, 3)).apply()
 
     fun putBool(c: Context, key: String, v: Boolean) = prefs(c).edit().putBoolean(key, v).apply()
     fun putInt(c: Context, key: String, v: Int) = prefs(c).edit().putInt(key, v).apply()

@@ -83,13 +83,11 @@ object PlaylistStore {
     }
 
     fun importM3u(context: Context, uri: Uri, name: String, songs: List<Song>): Int {
-        val lines = try {
-            context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readLines() }
-                ?: emptyList()
+        val candidates = try {
+            PlaylistFormatParser.read(context, uri).map { it.location }
         } catch (_: Throwable) {
             emptyList()
         }
-        val candidates = lines.filter { it.isNotBlank() && !it.startsWith("#") }
         val normalized = songs.associateBy { it.path.lowercase(Locale.ROOT) }
         val ids = candidates.mapNotNull { line ->
             val direct = normalized[line.trim().lowercase(Locale.ROOT)]

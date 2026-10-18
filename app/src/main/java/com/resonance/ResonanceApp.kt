@@ -413,7 +413,7 @@ fun ResonanceApp(remote: PlayerRemote) {
                             playlists = PlaylistStore.all(context)
                         }
                     },
-                    onImport = { importPlaylistLauncher.launch(arrayOf("audio/x-mpegurl", "audio/mpegurl", "text/plain")) },
+                    onImport = { importPlaylistLauncher.launch(arrayOf("audio/x-mpegurl", "audio/mpegurl", "audio/x-scpls", "application/pls", "application/vnd.ms-wpl", "text/plain")) },
                     onExport = { p ->
                         if (p.id.startsWith("smart:")) toast("Smart playlists cannot be exported yet")
                         else {

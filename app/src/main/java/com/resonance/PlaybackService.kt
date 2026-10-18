@@ -9,6 +9,7 @@ import android.media.audiofx.DynamicsProcessing
 import android.media.audiofx.Equalizer
 import android.media.audiofx.LoudnessEnhancer
 import android.media.audiofx.Virtualizer
+import android.media.audiofx.PresetReverb
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -42,6 +43,7 @@ class PlaybackService : MediaSessionService(), SharedPreferences.OnSharedPrefere
     private var loudness: LoudnessEnhancer? = null
     private var bassBoost: BassBoost? = null
     private var virtualizer: Virtualizer? = null
+    private var reverb: PresetReverb? = null
     private var lastMediaId: String? = null
     private var fadeInStartedAt = 0L
     private var replayGainMultiplier = 1f
@@ -136,6 +138,7 @@ class PlaybackService : MediaSessionService(), SharedPreferences.OnSharedPrefere
             .build()
         restorePlaybackState(exo)
         updateReplayGain(exo.currentMediaItem)
+        applyPlaybackParameters()
 
         setupEffects(exo.audioSessionId)
         AudioPrefs.prefs(this).registerOnSharedPreferenceChangeListener(this)
@@ -255,6 +258,9 @@ class PlaybackService : MediaSessionService(), SharedPreferences.OnSharedPrefere
             scheduleSleep()
         } else if (key == AppSettings.K_PAUSE_NOISY) {
             player?.setHandleAudioBecomingNoisy(AppSettings.pauseOnDisconnect(this))
+        } else if (key == AppSettings.K_TEMPO || key == AppSettings.K_REVERB) {
+            applyPlaybackParameters()
+            applyEnhancers(EqStore.master(this))
         }
     }
 
@@ -278,6 +284,7 @@ class PlaybackService : MediaSessionService(), SharedPreferences.OnSharedPrefere
 
         try { bassBoost = BassBoost(0, sessionId) } catch (t: Throwable) { bassBoost = null }
         try { virtualizer = Virtualizer(0, sessionId) } catch (t: Throwable) { virtualizer = null }
+        try { reverb = PresetReverb(0, sessionId) } catch (t: Throwable) { reverb = null }
 
         var engine = ""
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
@@ -396,6 +403,21 @@ class PlaybackService : MediaSessionService(), SharedPreferences.OnSharedPrefere
             virtualizer?.setEnabled(master && width > 0)
         } catch (t: Throwable) {
         }
+        try {
+            val preset = when (AppSettings.reverb(this)) {
+                1 -> PresetReverb.PRESET_SMALLROOM
+                2 -> PresetReverb.PRESET_MEDIUMROOM
+                else -> PresetReverb.PRESET_LARGEHALL
+            }
+            reverb?.setPreset(preset)
+            reverb?.setEnabled(master && AppSettings.reverb(this) > 0)
+        } catch (t: Throwable) {
+        }
+    }
+
+    private fun applyPlaybackParameters() {
+        val speed = AppSettings.tempo(this) / 100f
+        try { player?.setPlaybackSpeed(speed) } catch (_: Throwable) { }
     }
 
     private fun releaseEffects() {
@@ -404,10 +426,12 @@ class PlaybackService : MediaSessionService(), SharedPreferences.OnSharedPrefere
         try { loudness?.release() } catch (t: Throwable) { }
         try { bassBoost?.release() } catch (t: Throwable) { }
         try { virtualizer?.release() } catch (t: Throwable) { }
+        try { reverb?.release() } catch (t: Throwable) { }
         dsp = null
         equalizer = null
         loudness = null
         bassBoost = null
         virtualizer = null
+        reverb = null
     }
 }
