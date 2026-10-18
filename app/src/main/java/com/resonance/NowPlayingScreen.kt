@@ -37,8 +37,8 @@ private val VisualizerRest = Color.White.copy(alpha = 0.3f)
 fun NowPlayingScreen(
     title: String = "Baba Yilwa_124kbps.mp3",
     artist: String = "Unknown artist",
-    elapsed: String = "0:01",
     duration: String = "3:54",
+    elapsed: String = "0:01",
     format: String = "48 KHZ  125 KBPS  OPUS",
     onBack: () -> Unit = {},
     onSearch: () -> Unit = {},
@@ -47,11 +47,10 @@ fun NowPlayingScreen(
     var isPlaying by remember { mutableStateOf(false) }
     var progress by remember { mutableStateOf(0.25f) }
 
-    // Simulating the deep blue gradient from the album art
     val bgBrush = Brush.verticalGradient(
         colors = listOf(
-            Color(0xFF0F1A2E), // Deep blue
-            Color(0xFF05080F), // Very dark
+            Color(0xFF0F1A2E),
+            Color(0xFF05080F),
             Color.Black
         )
     )
@@ -68,7 +67,6 @@ fun NowPlayingScreen(
                 .navigationBarsPadding()
                 .padding(horizontal = 16.dp)
         ) {
-            // Top bar
             Row(
                 modifier = Modifier.fillMaxWidth().height(56.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -82,7 +80,6 @@ fun NowPlayingScreen(
 
             Spacer(Modifier.weight(1f))
 
-            // Album Art Placeholder (Looks like the image in your screenshot)
             Box(
                 modifier = Modifier
                     .fillMaxWidth(0.85f)
@@ -97,7 +94,6 @@ fun NowPlayingScreen(
 
             Spacer(Modifier.weight(1f))
 
-            // Thumbs & More
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -112,14 +108,12 @@ fun NowPlayingScreen(
 
             Spacer(Modifier.height(16.dp))
 
-            // Title Pills
             InfoPill(text = title, fontSize = 20.sp, weight = FontWeight.Bold)
             Spacer(Modifier.height(8.dp))
             InfoPill(text = artist, fontSize = 15.sp, weight = FontWeight.Medium)
 
             Spacer(Modifier.height(20.dp))
 
-            // Utility Buttons
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
@@ -135,12 +129,10 @@ fun NowPlayingScreen(
 
             Spacer(Modifier.height(24.dp))
 
-            // Visualizer & Controls
             Box(
                 modifier = Modifier.fillMaxWidth().height(120.dp),
                 contentAlignment = Alignment.Center
             ) {
-                // Distinct vertical bars (like Poweramp)
                 Canvas(modifier = Modifier.fillMaxSize()) {
                     val barWidth = 6.dp.toPx()
                     val gap = 6.dp.toPx()
@@ -149,7 +141,6 @@ fun NowPlayingScreen(
                     val playedX = size.width * progress
 
                     for (i in 0 until numBars) {
-                        // Create a varied wave shape
                         val heightFactor = 0.2f + (abs(sin(i * 0.5f)) * 0.6f) + (Random(i).nextFloat() * 0.2f)
                         val barHeight = size.height * heightFactor
                         val x = i * (barWidth + gap)
@@ -165,7 +156,6 @@ fun NowPlayingScreen(
                     }
                 }
 
-                // Playback controls INSIDE black circles
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly,
@@ -173,7 +163,6 @@ fun NowPlayingScreen(
                 ) {
                     ControlButton(Icons.Filled.FastRewind, 28.dp) { }
                     ControlButton(Icons.Filled.SkipPrevious, 32.dp) { }
-                    // Large Play Button
                     Box(
                         modifier = Modifier
                             .size(80.dp)
@@ -199,7 +188,6 @@ fun NowPlayingScreen(
 
             Spacer(Modifier.height(12.dp))
 
-            // Format chip
             Box(
                 modifier = Modifier
                     .align(Alignment.CenterHorizontally)
@@ -217,7 +205,6 @@ fun NowPlayingScreen(
 
             Spacer(Modifier.height(16.dp))
 
-            // Bottom Nav
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
