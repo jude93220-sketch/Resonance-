@@ -807,12 +807,13 @@ private fun BottomBar(
     onSearch: () -> Unit,
     onMenu: () -> Unit,
 ) {
+    val palette = LocalResonancePalette.current
     Row(
         Modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 8.dp)
-            .clip(RoundedCornerShape(30.dp))
-            .background(Color(0xFF1B1B1B)),
+            .clip(RoundedCornerShape(ResonanceUi.RadiusCard))
+            .background(palette.surface),
         horizontalArrangement = Arrangement.SpaceEvenly,
     ) {
         NavIcon(Icons.Filled.Apps, "Library", selected == 0, onLibrary, Modifier.weight(1f))
@@ -830,13 +831,14 @@ private fun NavIcon(
     onClick: () -> Unit,
     modifier: Modifier,
 ) {
+    val palette = LocalResonancePalette.current
     Box(
         modifier.clickable(onClick = onClick).padding(vertical = 16.dp),
         contentAlignment = Alignment.Center,
     ) {
         Icon(
             icon, description,
-            tint = if (selected) Color.White else Color(0xFF8A8A8A),
+            tint = if (selected) palette.accent else palette.mutedText,
             modifier = Modifier.size(30.dp),
         )
     }

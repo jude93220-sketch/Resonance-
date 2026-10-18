@@ -73,16 +73,19 @@ internal fun SongRow(
     onTap: () -> Unit,
     onLong: () -> Unit,
 ) {
+    val palette = LocalResonancePalette.current
     val tap by rememberUpdatedState(onTap)
     val long by rememberUpdatedState(onLong)
 
     Row(
         Modifier
             .fillMaxWidth()
+            .clip(RoundedCornerShape(ResonanceUi.RadiusControl))
+            .background(if (isCurrent) palette.accent.copy(alpha = 0.12f) else palette.surface.copy(alpha = 0.72f))
             .pointerInput(Unit) {
                 detectTapGestures(onTap = { tap() }, onLongPress = { long() })
             }
-            .padding(horizontal = 16.dp, vertical = 7.dp),
+            .padding(horizontal = 10.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(contentAlignment = Alignment.Center) {
@@ -103,8 +106,8 @@ internal fun SongRow(
         Column(Modifier.weight(1f)) {
             Text(
                 song.title,
-                color = if (isCurrent) Accent else Color.White,
-                fontSize = 17.sp,
+                color = if (isCurrent) palette.accent else palette.text,
+                fontSize = ResonanceUi.BodySize,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -112,8 +115,8 @@ internal fun SongRow(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     "${song.artist} - ${song.album}",
-                    color = Color(0xFFD0D0D0),
-                    fontSize = 13.sp,
+                    color = palette.mutedText,
+                    fontSize = ResonanceUi.CaptionSize,
                     fontWeight = FontWeight.Medium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -122,8 +125,8 @@ internal fun SongRow(
                 Spacer(Modifier.width(8.dp))
                 Text(
                     "${formatTime(song.duration)} | ${song.ext}",
-                    color = Color(0xFF9AA5B1),
-                    fontSize = 12.sp,
+                    color = palette.mutedText,
+                    fontSize = ResonanceUi.CaptionSize,
                     fontWeight = FontWeight.Medium,
                 )
             }
@@ -133,10 +136,12 @@ internal fun SongRow(
 
 @Composable
 internal fun OutlinePill(onClick: () -> Unit, content: @Composable () -> Unit) {
+    val palette = LocalResonancePalette.current
     Box(
         Modifier
-            .clip(RoundedCornerShape(50))
-            .border(1.dp, Color(0x66FFFFFF), RoundedCornerShape(50))
+            .clip(RoundedCornerShape(ResonanceUi.RadiusControl))
+            .background(palette.surface)
+            .border(1.dp, palette.mutedText.copy(alpha = 0.22f), RoundedCornerShape(ResonanceUi.RadiusControl))
             .clickable(onClick = onClick)
             .padding(horizontal = 18.dp, vertical = 12.dp),
         contentAlignment = Alignment.Center,
@@ -147,12 +152,12 @@ internal fun OutlinePill(onClick: () -> Unit, content: @Composable () -> Unit) {
 
 @Composable
 internal fun LibraryPill(onBack: () -> Unit) {
-    Row(Modifier.padding(start = 16.dp, top = 8.dp)) {
+    Row(Modifier.padding(start = ResonanceUi.ScreenHorizontal, top = 10.dp)) {
         OutlinePill(onClick = onBack) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = Color.White, modifier = Modifier.size(20.dp))
                 Spacer(Modifier.width(8.dp))
-                Text("Library", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                Text("Library", color = LocalResonancePalette.current.text, fontWeight = FontWeight.SemiBold, fontSize = ResonanceUi.CaptionSize)
             }
         }
     }
@@ -160,21 +165,22 @@ internal fun LibraryPill(onBack: () -> Unit) {
 
 @Composable
 internal fun TitleRow(title: String, icon: ImageVector) {
+    val palette = LocalResonancePalette.current
     Row(
-        Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+        Modifier.padding(horizontal = ResonanceUi.ScreenHorizontal, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
-            Modifier.size(64.dp).clip(CircleShape).background(Color(0xFF7F90E0)),
+            Modifier.size(56.dp).clip(RoundedCornerShape(16.dp)).background(palette.accent.copy(alpha = 0.22f)),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(icon, null, tint = Color(0xFF14213D), modifier = Modifier.size(34.dp))
+            Icon(icon, null, tint = palette.accent, modifier = Modifier.size(30.dp))
         }
         Spacer(Modifier.width(16.dp))
         Text(
             title,
-            color = Color.White,
-            fontSize = 30.sp,
+            color = palette.text,
+            fontSize = ResonanceUi.TitleSize,
             fontWeight = FontWeight.Bold,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,

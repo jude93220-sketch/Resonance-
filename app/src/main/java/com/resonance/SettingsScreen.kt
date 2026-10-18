@@ -59,11 +59,12 @@ fun SettingsScreen(
     onChanged: () -> Unit,
 ) {
     var page by remember { mutableStateOf<String?>(null) }
+    val palette = LocalResonancePalette.current
     BackHandler(enabled = page != null) { page = null }
 
     val title = page ?: "Settings"
 
-    Column(Modifier.fillMaxSize()) {
+    Column(Modifier.fillMaxSize().background(palette.background)) {
         Row(
             Modifier
                 .fillMaxWidth()
@@ -74,7 +75,7 @@ fun SettingsScreen(
             IconButton(onClick = { if (page != null) page = null else onBack() }) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Color.White)
             }
-            Text(title, color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+            Text(title, color = palette.text, fontSize = 22.sp, fontWeight = FontWeight.Bold)
         }
 
         Column(
@@ -470,28 +471,32 @@ private fun AboutPage() {
 
 @Composable
 private fun SectionLabel(text: String) {
+    val palette = LocalResonancePalette.current
     Text(
-        text, color = SubGrey, fontSize = 14.sp,
+        text.uppercase(), color = palette.accent, fontSize = ResonanceUi.SectionSize, fontWeight = FontWeight.Bold,
         modifier = Modifier.padding(start = 20.dp, top = 16.dp, bottom = 4.dp),
     )
 }
 
 @Composable
 private fun LinkRow(title: String, subtitle: String?, enabled: Boolean = true, onClick: () -> Unit) {
+    val palette = LocalResonancePalette.current
     Column(
         Modifier
             .fillMaxWidth()
+            .clip(RoundedCornerShape(ResonanceUi.RadiusControl))
+            .background(if (enabled) palette.surface.copy(alpha = 0.72f) else palette.surface.copy(alpha = 0.25f))
             .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 20.dp, vertical = 16.dp)
+            .padding(horizontal = 16.dp, vertical = ResonanceUi.RowVertical)
     ) {
         Text(
             title, fontSize = 18.sp, fontWeight = FontWeight.Bold,
-            color = if (enabled) Color.White else Color(0xFF6A6A6A),
+            color = if (enabled) palette.text else palette.text.copy(alpha = 0.35f),
         )
         if (subtitle != null) {
             Text(
-                subtitle, fontSize = 14.sp, fontWeight = FontWeight.Medium,
-                color = if (enabled) SubGrey else Color(0xFF555555),
+                subtitle, fontSize = ResonanceUi.CaptionSize, fontWeight = FontWeight.Medium,
+                color = if (enabled) palette.mutedText else palette.text.copy(alpha = 0.25f),
                 modifier = Modifier.padding(top = 3.dp),
             )
         }
@@ -500,18 +505,21 @@ private fun LinkRow(title: String, subtitle: String?, enabled: Boolean = true, o
 
 @Composable
 private fun SwitchRow(title: String, subtitle: String?, checked: Boolean, onChange: (Boolean) -> Unit) {
+    val palette = LocalResonancePalette.current
     Row(
         Modifier
             .fillMaxWidth()
             .clickable { onChange(!checked) }
-            .padding(horizontal = 20.dp, vertical = 14.dp),
+            .clip(RoundedCornerShape(ResonanceUi.RadiusControl))
+            .background(palette.surface.copy(alpha = 0.72f))
+            .padding(horizontal = 16.dp, vertical = ResonanceUi.RowVertical),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f).padding(end = 12.dp)) {
-            Text(title, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text(title, color = palette.text, fontSize = ResonanceUi.BodySize, fontWeight = FontWeight.Bold)
             if (subtitle != null) {
                 Text(
-                    subtitle, color = SubGrey, fontSize = 14.sp, fontWeight = FontWeight.Medium,
+                    subtitle, color = palette.mutedText, fontSize = ResonanceUi.CaptionSize, fontWeight = FontWeight.Medium,
                     modifier = Modifier.padding(top = 3.dp),
                 )
             }
@@ -520,8 +528,8 @@ private fun SwitchRow(title: String, subtitle: String?, checked: Boolean, onChan
             checked = checked,
             onCheckedChange = onChange,
             colors = SwitchDefaults.colors(
-                checkedThumbColor = PaBlue,
-                checkedTrackColor = Color(0xFF263A66),
+                checkedThumbColor = palette.accent,
+                checkedTrackColor = palette.accent.copy(alpha = 0.45f),
                 checkedBorderColor = Color.Transparent,
                 uncheckedThumbColor = Color(0xFFBDBDBD),
                 uncheckedTrackColor = Color(0xFF3A3A3A),
@@ -541,10 +549,11 @@ private fun SliderRow(
     footer: String? = null,
     onChange: (Float) -> Unit,
 ) {
-    Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp)) {
-        Text(title, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+    val palette = LocalResonancePalette.current
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(ResonanceUi.RadiusControl)).background(palette.surface.copy(alpha = 0.72f)).padding(horizontal = 16.dp, vertical = ResonanceUi.RowVertical)) {
+        Text(title, color = palette.text, fontSize = ResonanceUi.BodySize, fontWeight = FontWeight.Bold)
         Text(
-            valueLabel, color = SubGrey, fontSize = 14.sp, fontWeight = FontWeight.Medium,
+            valueLabel, color = palette.mutedText, fontSize = ResonanceUi.CaptionSize, fontWeight = FontWeight.Medium,
             modifier = Modifier.padding(top = 3.dp),
         )
         Slider(
@@ -553,9 +562,9 @@ private fun SliderRow(
             valueRange = range,
             steps = steps,
             colors = SliderDefaults.colors(
-                thumbColor = PaBlue,
-                activeTrackColor = PaBlue,
-                inactiveTrackColor = Color(0xFF555555),
+                thumbColor = palette.accent,
+                activeTrackColor = palette.accent,
+                inactiveTrackColor = palette.text.copy(alpha = 0.22f),
                 activeTickColor = Color.Transparent,
                 inactiveTickColor = Color.Transparent,
             ),
