@@ -11,10 +11,6 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -35,18 +31,19 @@ private val VisualizerRest = Color.White.copy(alpha = 0.3f)
 
 @Composable
 fun NowPlayingScreen(
-    title: String = "Baba Yilwa_124kbps.mp3",
-    artist: String = "Unknown artist",
-    duration: String = "3:54",
-    elapsed: String = "0:01",
+    title: String,
+    artist: String,
+    duration: String,
+    elapsed: String,
+    isPlaying: Boolean,
+    progress: Float,
+    onPlayPause: () -> Unit,
+    onSeek: (Float) -> Unit,
     format: String = "48 KHZ  125 KBPS  OPUS",
     onBack: () -> Unit = {},
     onSearch: () -> Unit = {},
     onMenu: () -> Unit = {},
 ) {
-    var isPlaying by remember { mutableStateOf(false) }
-    var progress by remember { mutableStateOf(0.25f) }
-
     val bgBrush = Brush.verticalGradient(
         colors = listOf(
             Color(0xFF0F1A2E),
@@ -161,18 +158,23 @@ fun NowPlayingScreen(
                     horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    ControlButton(Icons.Filled.FastRewind, 28.dp) { }
-                    ControlButton(Icons.Filled.SkipPrevious, 32.dp) { }
+                    ControlButton(Icons.Filled.FastRewind, 28.dp) { onSeek((progress - 0.05f).coerceAtLeast(0f)) }
+                    ControlButton(Icons.Filled.SkipPrevious, 32.dp) { onSeek(0f) }
                     Box(
                         modifier = Modifier
                             .size(80.dp)
                             .background(Color.Black, CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, "Play", tint = Color.White, modifier = Modifier.size(48.dp).clickable { isPlaying = !isPlaying })
+                        Icon(
+                            if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, 
+                            "Play", 
+                            tint = Color.White, 
+                            modifier = Modifier.size(48.dp).clickable { onPlayPause() }
+                        )
                     }
                     ControlButton(Icons.Filled.SkipNext, 32.dp) { }
-                    ControlButton(Icons.Filled.FastForward, 28.dp) { }
+                    ControlButton(Icons.Filled.FastForward, 28.dp) { onSeek((progress + 0.05f).coerceAtMost(1f)) }
                 }
             }
 
