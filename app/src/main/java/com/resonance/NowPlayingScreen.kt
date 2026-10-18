@@ -139,28 +139,31 @@ fun NowPlayingScreen(
             .fillMaxSize()
             .padding(horizontal = 16.dp)
     ) {
-        Spacer(Modifier.weight(if (playerLayout == 0) 0.5f else 0.2f))
+        Spacer(Modifier.height(10.dp))
+        Canvas(Modifier.fillMaxWidth().height(54.dp).padding(horizontal = 8.dp)) {
+            val barWidth = 4.dp.toPx()
+            val gap = 5.dp.toPx()
+            val count = (size.width / (barWidth + gap)).toInt()
+            val center = size.height / 2f
+            for (i in 0 until count) {
+                val pulse = (sin(phase + i * 0.42f) * 0.5f + 0.5f)
+                val level = if (isPlaying) 0.2f + pulse * 0.72f else 0.25f
+                val x = i * (barWidth + gap) + barWidth / 2f
+                drawLine(
+                    color = palette.accent.copy(alpha = 0.35f + (i % 4) * 0.12f),
+                    start = Offset(x, center - size.height * level / 2f),
+                    end = Offset(x, center + size.height * level / 2f),
+                    strokeWidth = barWidth,
+                )
+            }
+        }
+        Spacer(Modifier.height(12.dp))
 
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .aspectRatio(if (playerLayout == 0) 1.75f else 2.05f)
+                .aspectRatio(if (playerLayout == 0) 1.08f else 1.18f)
                 .clip(RoundedCornerShape(28.dp))
-                .pointerInput(song.id, swipeTracks) {
-                    var dragDistance = 0f
-                    detectHorizontalDragGestures(
-                        onDragStart = { dragDistance = 0f },
-                        onHorizontalDrag = { change, amount ->
-                            dragDistance += amount
-                            change.consume()
-                        },
-                        onDragEnd = {
-                            if (swipeTracks && abs(dragDistance) >= gestureSensitivity.toFloat()) {
-                                if (dragDistance < 0f) onNext() else onPrev()
-                            }
-                        },
-                    )
-                }
                 .pointerInput(song.id) {
                     detectTapGestures(onTap = { onArtTap() })
                 },
@@ -229,14 +232,6 @@ fun NowPlayingScreen(
             text = song.title,
             fontSize = 20.sp,
             weight = FontWeight.Bold,
-            modifier = Modifier.pointerInput(song.id) {
-                var distance = 0f
-                detectHorizontalDragGestures(
-                    onDragStart = { distance = 0f },
-                    onHorizontalDrag = { change, amount -> distance += amount; change.consume() },
-                    onDragEnd = { if (abs(distance) >= 80f) onSwipeSection(if (distance < 0f) 1 else -1) },
-                )
-            },
         )
         Spacer(Modifier.height(8.dp))
         InfoPill(text = "${song.artist} - ${song.album}", fontSize = 15.sp, weight = FontWeight.Medium)

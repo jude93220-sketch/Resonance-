@@ -6,6 +6,12 @@ import android.os.Build
 import android.provider.MediaStore
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.result.IntentSenderRequest
@@ -340,8 +346,28 @@ fun ResonanceApp(remote: PlayerRemote) {
             .statusBarsPadding()
             .navigationBarsPadding()
     ) {
-        Box(Modifier.weight(1f).fillMaxWidth()) {
-            when (route) {
+        Box(
+            Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .pointerInput(route) {
+                    var distance = 0f
+                    detectHorizontalDragGestures(
+                        onDragStart = { distance = 0f },
+                        onHorizontalDrag = { change, amount -> distance += amount; change.consume() },
+                        onDragEnd = { if (kotlin.math.abs(distance) >= 90f) swipeLibrarySection(if (distance < 0f) 1 else -1) },
+                    )
+                },
+        ) {
+            AnimatedContent(
+                targetState = route,
+                transitionSpec = {
+                    (slideInHorizontally { it / 4 } + fadeIn()) togetherWith
+                        (slideOutHorizontally { -it / 4 } + fadeOut())
+                },
+                label = "routeSlide",
+            ) { animatedRoute ->
+            when (animatedRoute) {
                 is Route.Home -> {
                     val entries = listOf(
                         HomeEntry("All Songs", Icons.Filled.MusicNote, Color(0xFF6C7FD8), null) {
@@ -416,10 +442,10 @@ fun ResonanceApp(remote: PlayerRemote) {
                 }
 
                 is Route.Groups -> {
-                    val groups = remember(route.kind, songs) { buildGroups(route.kind, songs) }
+                    val groups = remember(animatedRoute.kind, songs) { buildGroups(animatedRoute.kind, songs) }
                     GroupsScreen(
-                        title = route.kind.title,
-                        icon = groupIcon(route.kind),
+                        title = animatedRoute.kind.title,
+                        icon = groupIcon(animatedRoute.kind),
                         groups = groups,
                         onBack = { pop() },
                         onOpen = { g -> push(Route.Songs(g.title, g.songs, g.icon)) },
@@ -427,7 +453,7 @@ fun ResonanceApp(remote: PlayerRemote) {
                 }
 
                 is Route.FolderTree -> FolderTreeScreen(
-                    path = route.path,
+                    path = animatedRoute.path,
                     allSongs = songs,
                     current = current,
                     onBack = { pop() },
@@ -437,22 +463,22 @@ fun ResonanceApp(remote: PlayerRemote) {
                 )
 
                 is Route.Songs -> SongsScreen(
-                    title = route.title,
-                    icon = route.icon,
-                    songs = route.songs,
+                    title = animatedRoute.title,
+                    icon = animatedRoute.icon,
+                    songs = animatedRoute.songs,
                     current = current,
-                    alphabetical = route.alphabetical,
+                    alphabetical = animatedRoute.alphabetical,
                     onBack = { pop() },
                     onPlay = playList,
                     onShuffle = shuffleList,
                     onPlayNext = playNext,
                     onAddToQueue = addToQueue,
                     onAddToPlaylist = addToPlaylist,
-                    onRemoveFromPlaylist = if (route.playlistId != null) {
+                    onRemoveFromPlaylist = if (animatedRoute.playlistId != null) {
                         { s ->
-                            PlaylistStore.removeSong(context, route.playlistId, s.id)
+                            PlaylistStore.removeSong(context, animatedRoute.playlistId, s.id)
                             playlists = PlaylistStore.all(context)
-                            stack[stack.lastIndex] = route.copy(songs = route.songs.filter { it.id != s.id })
+                            stack[stack.lastIndex] = animatedRoute.copy(songs = animatedRoute.songs.filter { it.id != s.id })
                         }
                     } else {
                         null
@@ -548,8 +574,8 @@ fun ResonanceApp(remote: PlayerRemote) {
                     }
                 }
             }
+            }
         }
-
         if (route !is Route.Player && current != null) {
             MiniPlayerHost(remote = remote, song = current, onOpen = { push(Route.Player) })
         }
