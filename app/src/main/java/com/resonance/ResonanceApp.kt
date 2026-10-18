@@ -182,7 +182,7 @@ fun ResonanceApp(remote: PlayerRemote) {
             val name = uri.lastPathSegment?.substringAfterLast('/')?.substringBeforeLast('.') ?: "Imported playlist"
             val count = PlaylistStore.importM3u(context, uri, name, songs)
             playlists = PlaylistStore.all(context)
-            toast("Imported $count matching songs")
+            Toast.makeText(context, "Imported $count matching songs", Toast.LENGTH_SHORT).show()
         }
     }
     val exportPlaylistLauncher = rememberLauncherForActivityResult(
@@ -194,9 +194,9 @@ fun ResonanceApp(remote: PlayerRemote) {
                 context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use {
                     it.write(PlaylistStore.toM3u(target, songById))
                 }
-                toast("Playlist exported")
+                Toast.makeText(context, "Playlist exported", Toast.LENGTH_SHORT).show()
             } catch (_: Throwable) {
-                toast("Could not export playlist")
+                Toast.makeText(context, "Could not export playlist", Toast.LENGTH_SHORT).show()
             }
         }
         exportTarget = null
