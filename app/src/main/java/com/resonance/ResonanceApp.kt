@@ -74,6 +74,7 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -98,6 +99,7 @@ private sealed interface Route {
     object Queue : Route
     object Search : Route
     object Eq : Route
+    object Settings : Route
     object Player : Route
 }
 
@@ -127,6 +129,7 @@ fun ResonanceApp(remote: PlayerRemote) {
     var showPlayerMenu by remember { mutableStateOf(false) }
     var playlistTarget by remember { mutableStateOf<List<Long>?>(null) }
     var folderMenuSong by remember { mutableStateOf<Song?>(null) }
+    var settingsTick by remember { mutableIntStateOf(0) }
 
     val launcher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -164,6 +167,12 @@ fun ResonanceApp(remote: PlayerRemote) {
     val current = songById[remote.currentId]
     val tint = rememberArtTint(current)
 
+    val keepOn = remember(settingsTick) { AppSettings.keepScreenOn(context) }
+    val hostView = LocalView.current
+    LaunchedEffect(keepOn) { hostView.keepScreenOn = keepOn }
+    val bgIntensity = remember(settingsTick) { AppSettings.bgIntensity(context) }
+    val bgGradient = remember(settingsTick) { AppSettings.bgGradient(context) }
+
     fun push(r: Route) {
         stack.add(r)
     }
@@ -198,7 +207,12 @@ fun ResonanceApp(remote: PlayerRemote) {
     }
 
     val route = stack.last()
-    val bg = Brush.verticalGradient(listOf(tint, lerp(tint, Color.Black, 0.65f), Color.Black))
+    val bgTint = lerp(Color.Black, tint, bgIntensity / 100f)
+    val bg = if (bgGradient == 0) {
+        Brush.verticalGradient(listOf(bgTint, bgTint))
+    } else {
+        Brush.verticalGradient(listOf(bgTint, lerp(bgTint, Color.Black, bgGradient / 9f), Color.Black))
+    }
 
     val playList: (List<Song>, Int) -> Unit = { list, index -> remote.playQueue(list, index) }
     val shuffleList: (List<Song>) -> Unit = { list -> remote.playShuffled(list) }
@@ -379,6 +393,17 @@ fun ResonanceApp(remote: PlayerRemote) {
 
                 is Route.Eq -> EqualizerScreen(onBack = { pop() })
 
+                is Route.Settings -> SettingsScreen(
+                    songCount = songs.size,
+                    onBack = { pop() },
+                    onOpenEqualizer = { reset(Route.Home, Route.Eq) },
+                    onRescan = {
+                        scanTick++
+                        toast("Rescanning your music…")
+                    },
+                    onChanged = { settingsTick++ },
+                )
+
                 is Route.Player -> if (current != null) {
                     PlayerHost(
                         remote = remote,
@@ -407,6 +432,7 @@ fun ResonanceApp(remote: PlayerRemote) {
             is Route.Eq -> 1
             is Route.Search -> 2
             is Route.Player -> -1
+            is Route.Settings -> -1
             else -> 0
         }
         BottomBar(
@@ -500,6 +526,10 @@ fun ResonanceApp(remote: PlayerRemote) {
             title = { Text("Resonance") },
             text = {
                 Column {
+                    TextButton(onClick = {
+                        showMenu = false
+                        if (route !is Route.Settings) push(Route.Settings)
+                    }) { Text("Settings") }
                     TextButton(onClick = {
                         showMenu = false
                         scanTick++
