@@ -41,6 +41,12 @@ class PlaybackService : MediaSessionService(), SharedPreferences.OnSharedPrefere
         player?.pause()
         AudioPrefs.cancelSleep(this)
     }
+    private val stateRunnable = object : Runnable {
+        override fun run() {
+            savePlaybackState()
+            handler.postDelayed(this, 2_000L)
+        }
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -67,22 +73,42 @@ class PlaybackService : MediaSessionService(), SharedPreferences.OnSharedPrefere
                 // counts plays for the "Most Played" list
                 val id = mediaItem?.mediaId?.toLongOrNull()
                 if (id != null) PlayStats.increment(this@PlaybackService, id)
+                savePlaybackState()
+            }
+
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                savePlaybackState()
+            }
+
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                savePlaybackState()
+            }
+
+            override fun onTimelineChanged(
+                timeline: androidx.media3.common.Timeline,
+                reason: Int,
+            ) {
+                savePlaybackState()
             }
         })
 
         mediaSession = MediaSession.Builder(this, exo).build()
+        restorePlaybackState(exo)
 
         setupEffects(exo.audioSessionId)
         AudioPrefs.prefs(this).registerOnSharedPreferenceChangeListener(this)
         EqStore.prefs(this).registerOnSharedPreferenceChangeListener(this)
         AppSettings.prefs(this).registerOnSharedPreferenceChangeListener(this)
         scheduleSleep()
+        handler.post(stateRunnable)
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? =
         mediaSession
 
     override fun onDestroy() {
+        player?.let { savePlaybackState(it) }
+        handler.removeCallbacks(stateRunnable)
         handler.removeCallbacksAndMessages(null)
         AudioPrefs.prefs(this).unregisterOnSharedPreferenceChangeListener(this)
         EqStore.prefs(this).unregisterOnSharedPreferenceChangeListener(this)
@@ -95,6 +121,33 @@ class PlaybackService : MediaSessionService(), SharedPreferences.OnSharedPrefere
         mediaSession = null
         player = null
         super.onDestroy()
+    }
+
+    private fun restorePlaybackState(exo: ExoPlayer) {
+        val state = PlaybackStateStore.load(this) ?: return
+        exo.setMediaItems(state.items, state.index, state.positionMs)
+        exo.shuffleModeEnabled = state.shuffle
+        exo.repeatMode = state.repeatMode
+        exo.prepare()
+        if (state.playing) exo.play() else exo.pause()
+    }
+
+    private fun savePlaybackState() {
+        player?.let { savePlaybackState(it) }
+    }
+
+    private fun savePlaybackState(exo: ExoPlayer) {
+        val items = (0 until exo.mediaItemCount).map(exo::getMediaItemAt)
+        if (items.isEmpty()) return
+        PlaybackStateStore.save(
+            context = this,
+            playerItems = items,
+            index = exo.currentMediaItemIndex,
+            positionMs = exo.currentPosition,
+            playing = exo.isPlaying,
+            shuffle = exo.shuffleModeEnabled,
+            repeatMode = exo.repeatMode,
+        )
     }
 
     // ---------------------------------------------------------------- settings
