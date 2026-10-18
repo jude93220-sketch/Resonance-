@@ -160,7 +160,7 @@ fun NowPlayingScreen(
                             }
                         },
                     )
-                },
+                }
                 .pointerInput(song.id) {
                     detectTapGestures(onTap = { onArtTap() })
                 },
