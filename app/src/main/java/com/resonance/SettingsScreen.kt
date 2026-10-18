@@ -126,6 +126,15 @@ private fun AudioPage(onOpenEqualizer: () -> Unit) {
     }
 
     LinkRow("Equalizer", "10-band equalizer, preamp, bass/treble, limiter") { onOpenEqualizer() }
+    LinkRow("EQ Mode", "${EqStore.mode(context).replaceFirstChar { it.uppercase() }} mode") {
+        EqStore.setMode(context, if (EqStore.mode(context) == "graphic") "parametric" else "graphic")
+        tick++
+    }
+    LinkRow("Band Resolution", "${EqStore.bandCount(context)} bands on supported Android DSP") {
+        val next = when (EqStore.bandCount(context)) { 10 -> 20; 20 -> 32; else -> 10 }
+        EqStore.setBandCount(context, next)
+        tick++
+    }
     LinkRow("Audio Info", info) { tick++ }
     LinkRow("Reset equalizer", "Flat bands, preamp 0, bass 0%, treble 50%") {
         EqStore.resetAll(context)
@@ -334,8 +343,24 @@ private fun LookPage(onChanged: () -> Unit) {
         AppSettings.putBool(context, AppSettings.K_SWIPE_TRACKS, it)
         onChanged()
     }
+    LinkRow("Player Layout", if (AppSettings.playerLayout(context) == 0) "Classic" else "Compact") {
+        AppSettings.setPlayerLayout(context, 1 - AppSettings.playerLayout(context))
+        tick++
+        onChanged()
+    }
+    LinkRow("Swipe Sensitivity", "${AppSettings.gestureSensitivity(context)} px threshold") {
+        val next = when (AppSettings.gestureSensitivity(context)) { 80 -> 120; 120 -> 40; else -> 80 }
+        AppSettings.setGestureSensitivity(context, next)
+        tick++
+        onChanged()
+    }
+    LinkRow("Widget Style", if (AppSettings.widgetStyle(context) == 0) "Midnight" else "Accent") {
+        AppSettings.setWidgetStyle(context, 1 - AppSettings.widgetStyle(context))
+        tick++
+        onChanged()
+    }
     LinkRow("Restore Defaults", null) {
-        AppSettings.restore(context, AppSettings.K_KEEP_ON, AppSettings.K_SWIPE_TRACKS)
+        AppSettings.restore(context, AppSettings.K_KEEP_ON, AppSettings.K_SWIPE_TRACKS, AppSettings.K_PLAYER_LAYOUT, AppSettings.K_GESTURE_SENSITIVITY, AppSettings.K_WIDGET_STYLE)
         tick++
         onChanged()
     }

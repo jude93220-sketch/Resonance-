@@ -80,6 +80,8 @@ fun NowPlayingScreen(
     song: Song,
     visualizerMode: Int,
     swipeTracks: Boolean,
+    playerLayout: Int,
+    gestureSensitivity: Int,
     isPlaying: Boolean,
     positionMs: Long,
     durationMs: Long,
@@ -129,12 +131,12 @@ fun NowPlayingScreen(
             .fillMaxSize()
             .padding(horizontal = 16.dp)
     ) {
-        Spacer(Modifier.weight(0.5f))
+        Spacer(Modifier.weight(if (playerLayout == 0) 0.5f else 0.2f))
 
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .aspectRatio(1.75f)
+                .aspectRatio(if (playerLayout == 0) 1.75f else 2.05f)
                 .clip(RoundedCornerShape(28.dp))
                 .pointerInput(song.id, swipeTracks) {
                     var dragDistance = 0f
@@ -145,7 +147,7 @@ fun NowPlayingScreen(
                             change.consume()
                         },
                         onDragEnd = {
-                            if (swipeTracks && abs(dragDistance) >= 80f) {
+                            if (swipeTracks && abs(dragDistance) >= gestureSensitivity.toFloat()) {
                                 if (dragDistance < 0f) onNext() else onPrev()
                             }
                         },
@@ -168,7 +170,7 @@ fun NowPlayingScreen(
             }
         }
 
-        Spacer(Modifier.weight(0.4f))
+        Spacer(Modifier.weight(if (playerLayout == 0) 0.4f else 0.15f))
 
         Row(
             modifier = Modifier.fillMaxWidth(),

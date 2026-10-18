@@ -250,7 +250,7 @@ class PlaybackService : MediaSessionService(), SharedPreferences.OnSharedPrefere
     override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences?, key: String?) {
         if (key == null) return
         if (key in EqStore.KEYS) {
-            applyEffects()
+            if (key == EqStore.K_BAND_COUNT) setupEffects(player?.audioSessionId ?: 0) else applyEffects()
         } else if (key == AudioPrefs.K_SLEEP_END) {
             scheduleSleep()
         } else if (key == AppSettings.K_PAUSE_NOISY) {
@@ -313,7 +313,7 @@ class PlaybackService : MediaSessionService(), SharedPreferences.OnSharedPrefere
         val config = DynamicsProcessing.Config.Builder(
             DynamicsProcessing.VARIANT_FAVOR_FREQUENCY_RESOLUTION,
             2,
-            true, EqStore.FREQS.size,
+            true, EqStore.frequencies(this).size,
             false, 0,
             false, 0,
             true,
@@ -363,8 +363,10 @@ class PlaybackService : MediaSessionService(), SharedPreferences.OnSharedPrefere
 
     @RequiresApi(Build.VERSION_CODES.P)
     private fun applyDsp(dp: DynamicsProcessing, snap: EqStore.Snapshot) {
-        val n = EqStore.FREQS.size
-        val edges = EqStore.bandEdges()
+        val n = snap.frequencies.size
+        val edges = FloatArray(n) { i ->
+            if (i == n - 1) 20000f else kotlin.math.sqrt(snap.frequencies[i].toFloat() * snap.frequencies[i + 1].toFloat())
+        }
 
         val eq = DynamicsProcessing.Eq(true, true, n)
         for (i in 0 until n) {

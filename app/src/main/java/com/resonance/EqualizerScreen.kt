@@ -109,6 +109,8 @@ fun EqualizerScreen(onBack: () -> Unit) {
     var presetName by remember { mutableStateOf(EqStore.presetName(context)) }
     var userPresets by remember { mutableStateOf(EqStore.userPresets(context)) }
     var engine by remember { mutableStateOf(EqStore.engine(context)) }
+    var eqMode by remember { mutableStateOf(EqStore.mode(context)) }
+    var parametric by remember { mutableStateOf(EqStore.parametricBands(context)) }
 
     var showPresets by remember { mutableStateOf(false) }
     var showSave by remember { mutableStateOf(false) }
@@ -256,7 +258,7 @@ fun EqualizerScreen(onBack: () -> Unit) {
             }
             val flags = buildString {
                 append(engineName)
-                append(if (eqOn) "  EQ ${EqStore.FREQS.size}" else "  NO EQ")
+                append(if (eqOn) "  EQ ${EqStore.bandCount(context)}" else "  NO EQ")
                 if (toneOn) append("  TON")
                 if (limitOn) append("  LMT")
                 if (bassBoost > 0) append("  BB")
@@ -293,6 +295,10 @@ fun EqualizerScreen(onBack: () -> Unit) {
                     TogglePill("Limit", limitOn) {
                         limitOn = it
                         EqStore.setLimitOn(context, it)
+                    }
+                    TogglePill("Param", eqMode == "parametric") {
+                        eqMode = if (it) "parametric" else "graphic"
+                        EqStore.setMode(context, eqMode)
                     }
                 }
                 Spacer(Modifier.width(12.dp))
@@ -419,6 +425,16 @@ fun EqualizerScreen(onBack: () -> Unit) {
                     }
                 }
             }
+            if (eqMode == "parametric") {
+                ParametricBands(
+                    bands = parametric,
+                    onChange = { updated ->
+                        parametric = updated
+                        EqStore.saveParametricBands(context, updated)
+                    },
+                )
+                Spacer(Modifier.height(18.dp))
+            }
             Spacer(Modifier.height(24.dp))
         }
     }
@@ -503,6 +519,38 @@ fun EqualizerScreen(onBack: () -> Unit) {
 }
 
 // ------------------------------------------------------------------- widgets
+
+@Composable
+private fun ParametricBands(bands: List<ParametricBand>, onChange: (List<ParametricBand>) -> Unit) {
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(PanelDark).padding(12.dp),
+    ) {
+        Text("Parametric bands · gain mapped to active engine", color = Color.White, fontWeight = FontWeight.Bold)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+            bands.take(3).forEachIndexed { index, band ->
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("${band.frequency} Hz", color = Color.White, fontSize = 13.sp)
+                    Knob(
+                        value = ((band.gain + 15f) / 30f * 100f).roundToInt(),
+                        color = Color(0xFF14E3A0),
+                        onChange = { raw ->
+                            val updated = bands.toMutableList()
+                            updated[index] = band.copy(gain = raw / 100f * 30f - 15f)
+                            onChange(updated)
+                        },
+                        onReset = {
+                            val updated = bands.toMutableList()
+                            updated[index] = band.copy(gain = 0f)
+                            onChange(updated)
+                        },
+                        modifier = Modifier.size(78.dp),
+                    )
+                    Text(db1(band.gain), color = Color(0xFFBDBDBD), fontSize = 13.sp)
+                }
+            }
+        }
+    }
+}
 
 @Composable
 private fun TogglePill(label: String, on: Boolean, onChange: (Boolean) -> Unit) {

@@ -16,6 +16,8 @@ class EqPreset(
     val builtin: Boolean,
 )
 
+data class ParametricBand(val frequency: Int, val q: Float, val gain: Float)
+
 /** Everything the equalizer remembers. The UI writes here, PlaybackService listens and applies it. */
 object EqStore {
     private const val PREFS = "resonance_eq"
@@ -33,13 +35,22 @@ object EqStore {
     const val K_PRESET = "eq_preset_name"
     const val K_USER = "eq_user_presets"
     const val K_ENGINE = "eq_engine"
+    const val K_BAND_COUNT = "eq_band_count"
+    const val K_MODE = "eq_mode"
+    const val K_PARAMETRIC = "eq_parametric"
 
     val KEYS = setOf(
         K_MASTER, K_EQ_ON, K_TONE_ON, K_LIMIT_ON, K_GAINS, K_PREAMP, K_BASS, K_TREBLE,
         K_BASS_BOOST, K_STEREO_WIDTH,
+        K_BAND_COUNT, K_MODE, K_PARAMETRIC,
     )
 
     val FREQS = intArrayOf(31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000)
+    val BAND_FREQS = mapOf(
+        10 to FREQS,
+        20 to intArrayOf(25, 32, 40, 50, 63, 80, 100, 125, 160, 200, 250, 315, 400, 500, 630, 800, 1000, 2000, 4000, 16000),
+        32 to intArrayOf(25, 31, 40, 50, 63, 80, 100, 125, 160, 200, 250, 315, 400, 500, 630, 800, 1000, 1250, 1600, 2000, 2500, 3150, 4000, 5000, 6300, 8000, 10000, 12500, 14000, 16000, 18000, 20000),
+    )
     const val MAX_DB = 15f
     const val MIN_DB = -15f
 
@@ -86,6 +97,23 @@ object EqStore {
 
     fun engine(c: Context) = prefs(c).getString(K_ENGINE, "") ?: ""
     fun setEngine(c: Context, v: String) = prefs(c).edit().putString(K_ENGINE, v).apply()
+    fun bandCount(c: Context) = prefs(c).getInt(K_BAND_COUNT, 10).let { if (it in BAND_FREQS) it else 10 }
+    fun setBandCount(c: Context, v: Int) = prefs(c).edit().putInt(K_BAND_COUNT, v.coerceIn(10, 32)).apply()
+    fun mode(c: Context) = prefs(c).getString(K_MODE, "graphic") ?: "graphic"
+    fun setMode(c: Context, v: String) = prefs(c).edit().putString(K_MODE, v).apply()
+    fun frequencies(c: Context): IntArray = BAND_FREQS[bandCount(c)] ?: FREQS
+
+    fun parametricBands(c: Context): List<ParametricBand> {
+        val raw = prefs(c).getString(K_PARAMETRIC, "80:1.0:0,1000:1.0:0,10000:1.0:0") ?: ""
+        return raw.split(",").mapNotNull { part ->
+            val p = part.split(":")
+            if (p.size == 3) ParametricBand(p[0].toIntOrNull() ?: return@mapNotNull null, p[1].toFloatOrNull() ?: 1f, p[2].toFloatOrNull() ?: 0f) else null
+        }.take(6)
+    }
+    fun saveParametricBands(c: Context, bands: List<ParametricBand>) {
+        val raw = bands.joinToString(",") { "${it.frequency}:${it.q}:${it.gain}" }
+        prefs(c).edit().putString(K_PARAMETRIC, raw).apply()
+    }
 
     fun resetAll(c: Context) {
         prefs(c).edit()
@@ -175,11 +203,18 @@ object EqStore {
     /** The per-band gain the audio engine really uses: EQ bands plus tone knobs. */
     fun effectiveGains(
         gains: List<Float>, bass: Int, treble: Int, eqOn: Boolean, toneOn: Boolean,
-    ): FloatArray = FloatArray(FREQS.size) { i ->
-        val base = if (eqOn) gains[i] else 0f
-        val tone = if (toneOn) toneDb(FREQS[i], bass, treble) else 0f
-        (base + tone).coerceIn(-20f, 20f)
+        frequencies: IntArray = FREQS, parametric: List<ParametricBand> = emptyList(),
+    ): FloatArray = FloatArray(frequencies.size) { i ->
+        val base = if (eqOn) interpolate(gains.toFloatArray(), frequencies[i].toFloat()) else 0f
+        val tone = if (toneOn) toneDb(frequencies[i], bass, treble) else 0f
+        val param = if (modeFrom(parametric)) parametric.sumOf { band ->
+            val distance = ln(frequencies[i].toFloat() / band.frequency) / (band.q.coerceAtLeast(0.1f))
+            (band.gain * exp(-0.5f * distance * distance)).toDouble()
+        }.toFloat() else 0f
+        (base + tone + param).coerceIn(-20f, 20f)
     }
+
+    private fun modeFrom(parametric: List<ParametricBand>) = parametric.isNotEmpty()
 
     /** Upper edge of every band (geometric middle between neighbours). */
     fun bandEdges(): FloatArray = FloatArray(FREQS.size) { i ->
@@ -222,18 +257,22 @@ object EqStore {
         val limitOn: Boolean,
         val preamp: Float,
         val gains: FloatArray,
+        val frequencies: IntArray,
     )
 
     fun snapshot(c: Context): Snapshot {
         val eq = eqOn(c)
         val tone = toneOn(c)
+        val frequencies = frequencies(c)
+        val rawGains = gains(c)
         return Snapshot(
             master = master(c),
             eqOn = eq,
             toneOn = tone,
             limitOn = limitOn(c),
             preamp = preamp(c),
-            gains = effectiveGains(gains(c), bass(c), treble(c), eq, tone),
+            gains = effectiveGains(rawGains, bass(c), treble(c), eq, tone, frequencies, if (mode(c) == "parametric") parametricBands(c) else emptyList()),
+            frequencies = frequencies,
         )
     }
 
