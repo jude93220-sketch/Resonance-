@@ -19,11 +19,11 @@ This is the implementation tracker for Resonance. Features that depend on a phon
 
 ## Library and metadata
 
-- [ ] User-selected scan folders and exclusions through Storage Access Framework.
+- [x] User-selected scan folders and exclusions through Storage Access Framework.
 - [ ] Smart playlists and richer sorting/filtering rules.
 - [x] Tag editor with safe write-back and permission handling.
-- [ ] Synchronized/plain lyrics and LRC timing.
-- [ ] Lyrics search integration.
+- [x] Synchronized/plain lyrics and LRC timing.
+- [x] Lyrics search integration.
 - [ ] Embedded and standalone CUE sheets.
 - [ ] M3U/M3U8/PLS/WPL import and export.
 - [ ] Radio and HTTP stream sources.

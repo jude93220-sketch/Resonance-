@@ -94,6 +94,7 @@ fun SettingsScreen(
                     LinkRow("ReplayGain", "Normalize track or album loudness") { page = "ReplayGain" }
                     LinkRow("Playback", "Gapless playback and track transitions") { page = "Playback" }
                     LinkRow("Library", "Scanner and library options") { page = "Library" }
+                    LinkRow("Lyrics", "Local LRC/TXT files and optional online search") { page = "Lyrics" }
                     LinkRow("Smart Playlists", "Rules for ratings, plays, recency, and metadata") { page = "Smart Playlists" }
                     LinkRow("Headset/Bluetooth", "Connection behaviour") { page = "Headset/Bluetooth" }
                     LinkRow("Lock Screen", "Android media controls, artwork, privacy, and button layout") { page = "Lock Screen" }
@@ -109,6 +110,7 @@ fun SettingsScreen(
                 "ReplayGain" -> ReplayGainPage()
                 "Playback" -> PlaybackPage(onChanged)
                 "Library" -> LibraryPage(songCount, onRescan)
+                "Lyrics" -> LyricsPage(onChanged)
                 "Smart Playlists" -> SmartPlaylistsPage(onChanged)
                 "Headset/Bluetooth" -> HeadsetPage(onChanged)
                 "Lock Screen" -> LockScreenPage(onChanged)
@@ -397,6 +399,33 @@ private fun LockScreenPage(onChanged: () -> Unit) {
     )
     LinkRow("Restore Defaults", null) {
         AppSettings.restore(context, AppSettings.K_LOCKSCREEN_CONTROLS, AppSettings.K_LOCKSCREEN_ARTWORK, AppSettings.K_LOCKSCREEN_HIDE_CONTENT, AppSettings.K_LOCKSCREEN_BUTTONS)
+        tick++
+        onChanged()
+    }
+}
+
+@Composable
+private fun LyricsPage(onChanged: () -> Unit) {
+    val context = LocalContext.current
+    var tick by remember { mutableIntStateOf(0) }
+    var online by remember(tick) { mutableStateOf(AppSettings.lyricsOnline(context)) }
+
+    SectionLabel("Lyrics source")
+    LinkRow("Local lyrics", "Automatically reads matching .lrc and .txt files beside the audio file") { }
+    SwitchRow("Search online when local lyrics are missing", "Uses LRCLIB only after you opt in; synchronized lyrics are time-aligned when available", online) {
+        online = it
+        AppSettings.putBool(context, AppSettings.K_LYRICS_ONLINE, it)
+        tick++
+        onChanged()
+    }
+    Text(
+        "Online lookup sends the current title, artist, and album to LRCLIB. Resonance does not upload your audio files.",
+        color = SubGrey,
+        fontSize = 13.sp,
+        modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
+    )
+    LinkRow("Restore Defaults", null) {
+        AppSettings.restore(context, AppSettings.K_LYRICS_ONLINE)
         tick++
         onChanged()
     }

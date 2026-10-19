@@ -28,6 +28,7 @@ object AppSettings {
     const val K_LOCKSCREEN_ARTWORK = "lockscreen_artwork"
     const val K_LOCKSCREEN_HIDE_CONTENT = "lockscreen_hide_content"
     const val K_LOCKSCREEN_BUTTONS = "lockscreen_buttons"
+    const val K_LYRICS_ONLINE = "lyrics_online"
 
     fun prefs(context: Context): SharedPreferences =
         context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -85,6 +86,7 @@ object AppSettings {
     fun lockScreenArtwork(c: Context) = prefs(c).getBoolean(K_LOCKSCREEN_ARTWORK, true)
     fun lockScreenHideContent(c: Context) = prefs(c).getBoolean(K_LOCKSCREEN_HIDE_CONTENT, false)
     fun lockScreenButtons(c: Context) = prefs(c).getInt(K_LOCKSCREEN_BUTTONS, 0).coerceIn(0, 2)
+    fun lyricsOnline(c: Context) = prefs(c).getBoolean(K_LYRICS_ONLINE, false)
 
     fun putBool(c: Context, key: String, v: Boolean) = prefs(c).edit().putBoolean(key, v).apply()
     fun putInt(c: Context, key: String, v: Int) = prefs(c).edit().putInt(key, v).apply()

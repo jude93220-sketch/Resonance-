@@ -2,7 +2,11 @@ package com.resonance
 
 import android.content.Context
 import android.net.Uri
+import org.json.JSONObject
 import java.io.File
+import java.net.HttpURLConnection
+import java.net.URL
+import java.net.URLEncoder
 import java.util.concurrent.ConcurrentHashMap
 import java.util.regex.Pattern
 
@@ -13,7 +17,7 @@ object LyricsStore {
 
     fun load(context: Context, song: Song): List<Line> {
         val key = song.uri.toString()
-        cache[key]?.let { return it }
+        cache[key]?.let { if (it.isNotEmpty() || !AppSettings.lyricsOnline(context)) return it }
         val candidates = ArrayList<String>()
         if (song.path.isNotBlank()) {
             val base = song.path.substringBeforeLast('.', song.path)
@@ -23,9 +27,48 @@ object LyricsStore {
         val text = candidates.asSequence().mapNotNull { path ->
             try { File(path).takeIf { it.isFile }?.readText() } catch (_: Throwable) { null }
         }.firstOrNull()
-        val parsed = text?.let(::parse).orEmpty()
+        val parsed = text?.let(::parse).orEmpty().ifEmpty {
+            if (AppSettings.lyricsOnline(context)) fetchOnline(song) else emptyList()
+        }
         cache[key] = parsed
         return parsed
+    }
+
+    private fun fetchOnline(song: Song): List<Line> {
+        val endpoint = buildString {
+            append("https://lrclib.net/api/get?track_name=")
+            append(URLEncoder.encode(song.title, "UTF-8"))
+            append("&artist_name=")
+            append(URLEncoder.encode(song.artist, "UTF-8"))
+            if (song.album.isNotBlank()) {
+                append("&album_name=")
+                append(URLEncoder.encode(song.album, "UTF-8"))
+            }
+        }
+        return try {
+            val connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                connectTimeout = 4_000
+                readTimeout = 4_000
+                setRequestProperty("User-Agent", "Resonance/1.0 (lyrics search)")
+            }
+            try {
+                if (connection.responseCode !in 200..299) return emptyList()
+                val body = connection.inputStream.bufferedReader().use { it.readText() }
+                val json = JSONObject(body)
+                val synced = json.optString("syncedLyrics", "")
+                if (synced.isNotBlank()) {
+                    parse(synced)
+                } else {
+                    val plain = json.optString("plainLyrics", "").trim()
+                    if (plain.isBlank()) emptyList() else listOf(Line(0L, plain))
+                }
+            } finally {
+                connection.disconnect()
+            }
+        } catch (_: Throwable) {
+            emptyList()
+        }
     }
 
     private fun parse(text: String): List<Line> = buildList {
