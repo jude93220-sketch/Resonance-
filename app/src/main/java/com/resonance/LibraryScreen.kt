@@ -147,34 +147,38 @@ fun commonRoot(songs: List<Song>): String {
 
 @Composable
 fun LibraryHome(entries: List<HomeEntry>) {
-    Column(Modifier.fillMaxSize()) {
+    val palette = LocalResonancePalette.current
+    Column(Modifier.fillMaxSize().padding(horizontal = ResonanceUi.ScreenHorizontal)) {
         Text(
             "Library",
-            color = Color.White,
-            fontSize = 34.sp,
+            color = palette.text,
+            fontSize = ResonanceUi.TitleSize,
             fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(start = 24.dp, top = 20.dp, bottom = 12.dp),
+            modifier = Modifier.padding(top = 20.dp, bottom = 4.dp),
         )
-        LazyColumn(Modifier.fillMaxSize()) {
+        Text("Your music collection", color = palette.mutedText, fontSize = ResonanceUi.BodySize, modifier = Modifier.padding(bottom = 14.dp))
+        LazyColumn(Modifier.fillMaxSize(), verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
             itemsIndexed(entries) { _, entry ->
                 Row(
                     Modifier
                         .fillMaxWidth()
+                        .clip(RoundedCornerShape(ResonanceUi.RadiusCard))
+                        .background(palette.surface)
                         .clickable(onClick = entry.onClick)
-                        .padding(horizontal = 20.dp, vertical = 10.dp),
+                        .padding(horizontal = 14.dp, vertical = 11.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Box(
-                        Modifier.size(56.dp).clip(CircleShape).background(entry.color),
+                        Modifier.size(50.dp).clip(RoundedCornerShape(14.dp)).background(entry.color),
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(entry.icon, null, tint = Color.White.copy(alpha = 0.92f), modifier = Modifier.size(28.dp))
                     }
-                    Spacer(Modifier.width(18.dp))
-                    Text(entry.title, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.width(14.dp))
+                    Text(entry.title, color = palette.text, fontSize = ResonanceUi.BodySize, fontWeight = FontWeight.Bold)
                     if (entry.badge != null) {
                         Spacer(Modifier.width(12.dp))
-                        Text(entry.badge, color = Color(0xFFD0D0D0), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        Text(entry.badge, color = palette.mutedText, fontSize = ResonanceUi.CaptionSize, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -203,11 +207,14 @@ fun GroupsScreen(title: String, icon: ImageVector, groups: List<Group>, onBack: 
 
 @Composable
 private fun GroupRow(g: Group, onClick: () -> Unit) {
+    val palette = LocalResonancePalette.current
     Row(
         Modifier
             .fillMaxWidth()
+            .clip(RoundedCornerShape(ResonanceUi.RadiusCard))
+            .background(palette.surface)
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (g.showArt && g.songs.isNotEmpty()) {
@@ -223,11 +230,11 @@ private fun GroupRow(g: Group, onClick: () -> Unit) {
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
             Text(
-                g.title, color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.SemiBold,
+                g.title, color = palette.text, fontSize = ResonanceUi.BodySize, fontWeight = FontWeight.SemiBold,
                 maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
             Text(
-                g.subtitle, color = Color(0xFFD0D0D0), fontSize = 13.sp,
+                g.subtitle, color = palette.mutedText, fontSize = ResonanceUi.CaptionSize,
                 maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
         }

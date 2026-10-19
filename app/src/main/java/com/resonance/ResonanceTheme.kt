@@ -18,10 +18,10 @@ data class ResonancePalette(
 
 object ResonanceThemes {
     val all = listOf(
-        ResonancePalette("Midnight", Color(0xFF05070D), Color(0xCC111827), Color(0xFF00E5FF), Color.White, Color(0xFFB8C2CC), Color(0x6657C7FF)),
-        ResonancePalette("Graphite", Color(0xFF111111), Color(0xDD242424), Color(0xFFFFB300), Color.White, Color(0xFFC7C7C7), Color(0x66FFB300)),
-        ResonancePalette("Deep Blue", Color(0xFF071426), Color(0xDD102A4A), Color(0xFF6FA8FF), Color.White, Color(0xFFB5C7E6), Color(0x665F9DFF)),
-        ResonancePalette("Amber Night", Color(0xFF1A0F08), Color(0xDD322016), Color(0xFFFF8A3D), Color(0xFFFFF7EE), Color(0xFFD5BBA6), Color(0x66FF8A3D)),
+        ResonancePalette("Midnight", Color(0xFF080B12), Color(0xEE111722), Color(0xFF3D8BFF), Color(0xFFF4F7FB), Color(0xFFAAB6C6), Color(0x663D8BFF)),
+        ResonancePalette("Graphite", Color(0xFF0E1117), Color(0xEE181D26), Color(0xFFFFB547), Color(0xFFF7F8FA), Color(0xFFB7C0CB), Color(0x66FFB547)),
+        ResonancePalette("Deep Blue", Color(0xFF071321), Color(0xEE102238), Color(0xFF66B6FF), Color(0xFFF2F7FF), Color(0xFFA8BED8), Color(0x6666B6FF)),
+        ResonancePalette("Amber Night", Color(0xFF17100B), Color(0xEE261A12), Color(0xFFFF9C54), Color(0xFFFFF7EE), Color(0xFFD5BBA6), Color(0x66FF9C54)),
         ResonancePalette("Light", Color(0xFFF3F5F8), Color(0xEEFFFFFF), Color(0xFF155BC4), Color(0xFF101820), Color(0xFF5B6670), Color(0x662B6FD6)),
     )
 

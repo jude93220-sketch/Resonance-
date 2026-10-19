@@ -3,10 +3,18 @@ package com.resonance
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
+import android.provider.MediaStore
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.result.IntentSenderRequest
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -104,6 +112,56 @@ private sealed interface Route {
     object Player : Route
 }
 
+private sealed interface PlaybackSource {
+    data object AllSongs : PlaybackSource
+    data class RouteOrigin(val route: Route) : PlaybackSource
+}
+
+data class TagValues(
+    val title: String,
+    val artist: String,
+    val album: String,
+    val genre: String,
+    val trackNumber: String = "",
+    val year: String = "",
+    val composer: String = "",
+    val albumArtist: String = "",
+)
+
+@Composable
+private fun TagEditorDialog(song: Song, onDismiss: () -> Unit, onSave: (TagValues) -> Unit) {
+    var title by remember(song.id) { mutableStateOf(song.title) }
+    var artist by remember(song.id) { mutableStateOf(song.artist) }
+    var album by remember(song.id) { mutableStateOf(song.album) }
+    var genre by remember(song.id) { mutableStateOf(song.genre) }
+    var trackNumber by remember(song.id) { mutableStateOf(song.trackNumber.takeIf { it > 0 }?.toString() ?: "") }
+    var year by remember(song.id) { mutableStateOf(song.year.takeIf { it > 0 }?.toString() ?: "") }
+    var composer by remember(song.id) { mutableStateOf(song.composer) }
+    var albumArtist by remember(song.id) { mutableStateOf(song.albumArtist) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Edit tags") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                TextField(title, { title = it }, label = { Text("Title") }, singleLine = true)
+                TextField(artist, { artist = it }, label = { Text("Artist") }, singleLine = true)
+                TextField(album, { album = it }, label = { Text("Album") }, singleLine = true)
+                TextField(genre, { genre = it }, label = { Text("Genre") }, singleLine = true)
+                TextField(trackNumber, { trackNumber = it }, label = { Text("Track number") }, singleLine = true)
+                TextField(year, { year = it }, label = { Text("Year") }, singleLine = true)
+                TextField(composer, { composer = it }, label = { Text("Composer") }, singleLine = true)
+                TextField(albumArtist, { albumArtist = it }, label = { Text("Album artist") }, singleLine = true)
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                onSave(TagValues(title, artist, album, genre, trackNumber, year, composer, albumArtist))
+            }) { Text("Save") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
+}
+
 @Composable
 fun ResonanceApp(remote: PlayerRemote) {
     val context = LocalContext.current
@@ -125,16 +183,46 @@ fun ResonanceApp(remote: PlayerRemote) {
     var playlists by remember { mutableStateOf(PlaylistStore.all(context)) }
     var sleepEnd by remember { mutableLongStateOf(AudioPrefs.sleepEnd(context)) }
     val stack = remember { mutableStateListOf<Route>(Route.Home) }
+    var initialPlayerOpened by remember { mutableStateOf(false) }
     var showMenu by remember { mutableStateOf(false) }
     var showSleep by remember { mutableStateOf(false) }
     var showPlayerMenu by remember { mutableStateOf(false) }
+    var showTagEditor by remember { mutableStateOf(false) }
     var playlistTarget by remember { mutableStateOf<List<Long>?>(null) }
     var folderMenuSong by remember { mutableStateOf<Song?>(null) }
     var settingsTick by remember { mutableIntStateOf(0) }
+    var exportTarget by remember { mutableStateOf<Playlist?>(null) }
+    var playbackSource by remember { mutableStateOf<PlaybackSource>(PlaybackSource.AllSongs) }
+    var sectionPage by remember { mutableIntStateOf(0) }
+    val smartPlaylists = remember(songs, settingsTick) {
+        SmartPlaylistStore.all(context).map { rule ->
+            Playlist(
+                id = "smart:${rule.id}",
+                name = "${rule.name} · Smart",
+                songIds = SmartPlaylistStore.evaluate(context, rule, songs).map { it.id },
+            )
+        }
+    }
 
     val launcher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { granted = hasAudioPermission() }
+
+    var pendingTagEdit by remember { mutableStateOf<Pair<Song, TagValues>?>(null) }
+    val tagWriteLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        val pending = pendingTagEdit
+        if (result.resultCode == android.app.Activity.RESULT_OK && pending != null) {
+            TagEditor.update(
+                context, pending.first, pending.second.title, pending.second.artist, pending.second.album,
+                pending.second.genre, pending.second.trackNumber, pending.second.year,
+                pending.second.composer, pending.second.albumArtist,
+            )
+            scanTick++
+        }
+        pendingTagEdit = null
+    }
 
     fun requestPermissions() {
         val wanted = ArrayList<String>()
@@ -149,6 +237,14 @@ fun ResonanceApp(remote: PlayerRemote) {
     }
 
     LaunchedEffect(Unit) { requestPermissions() }
+
+    LaunchedEffect(remote.currentId) {
+        if (!initialPlayerOpened && remote.currentId >= 0L) {
+            stack.clear()
+            stack.add(Route.Player)
+            initialPlayerOpened = true
+        }
+    }
 
     LaunchedEffect(granted, scanTick) {
         if (granted) {
@@ -165,6 +261,32 @@ fun ResonanceApp(remote: PlayerRemote) {
     }
 
     val songById = remember(songs) { songs.associateBy { it.id } }
+    val importPlaylistLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        if (uri != null) {
+            val name = uri.lastPathSegment?.substringAfterLast('/')?.substringBeforeLast('.') ?: "Imported playlist"
+            val count = PlaylistStore.importM3u(context, uri, name, songs)
+            playlists = PlaylistStore.all(context)
+            Toast.makeText(context, "Imported $count matching songs", Toast.LENGTH_SHORT).show()
+        }
+    }
+    val exportPlaylistLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("audio/x-mpegurl"),
+    ) { uri ->
+        val target = exportTarget
+        if (uri != null && target != null) {
+            try {
+                context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use {
+                    it.write(PlaylistStore.toM3u(target, songById))
+                }
+                Toast.makeText(context, "Playlist exported", Toast.LENGTH_SHORT).show()
+            } catch (_: Throwable) {
+                Toast.makeText(context, "Could not export playlist", Toast.LENGTH_SHORT).show()
+            }
+        }
+        exportTarget = null
+    }
     val current = songById[remote.currentId]
     val tint = rememberArtTint(current)
 
@@ -217,8 +339,34 @@ fun ResonanceApp(remote: PlayerRemote) {
         Brush.verticalGradient(listOf(bgTint, lerp(bgTint, palette.background, bgGradient / 9f), palette.background))
     }
 
-    val playList: (List<Song>, Int) -> Unit = { list, index -> remote.playQueue(list, index) }
-    val shuffleList: (List<Song>) -> Unit = { list -> remote.playShuffled(list) }
+    fun capturePlaybackSource() {
+        playbackSource = when (route) {
+            Route.Home, Route.Player, Route.Eq, Route.Settings -> PlaybackSource.AllSongs
+            else -> PlaybackSource.RouteOrigin(route)
+        }
+    }
+
+    fun goToPlaybackSource() {
+        when (val source = playbackSource) {
+            PlaybackSource.AllSongs -> reset(Route.Songs("All Songs", songs, Icons.Filled.MusicNote, alphabetical = true))
+            is PlaybackSource.RouteOrigin -> {
+                if (source.route is Route.Search) reset(Route.Home, source.route) else reset(source.route)
+            }
+        }
+    }
+
+    fun swipeLibrarySection(direction: Int) {
+        sectionPage = (sectionPage + direction).mod(4)
+        when (sectionPage) {
+            0 -> reset(Route.Home)
+            1 -> reset(Route.Songs("All Songs", songs, Icons.Filled.MusicNote, alphabetical = true))
+            2 -> reset(Route.Groups(GroupKind.ALBUMS))
+            else -> reset(Route.Groups(GroupKind.ARTISTS))
+        }
+    }
+
+    val playList: (List<Song>, Int) -> Unit = { list, index -> capturePlaybackSource(); remote.playQueue(list, index) }
+    val shuffleList: (List<Song>) -> Unit = { list -> capturePlaybackSource(); remote.playShuffled(list) }
     val playNext: (List<Song>) -> Unit = { list ->
         remote.playNext(list)
         toast("Will play next")
@@ -237,8 +385,28 @@ fun ResonanceApp(remote: PlayerRemote) {
             .statusBarsPadding()
             .navigationBarsPadding()
     ) {
-        Box(Modifier.weight(1f).fillMaxWidth()) {
-            when (route) {
+        Box(
+            Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .pointerInput(route) {
+                    var distance = 0f
+                    detectHorizontalDragGestures(
+                        onDragStart = { distance = 0f },
+                        onHorizontalDrag = { change, amount -> distance += amount; change.consume() },
+                        onDragEnd = { if (kotlin.math.abs(distance) >= 90f) swipeLibrarySection(if (distance < 0f) 1 else -1) },
+                    )
+                },
+        ) {
+            AnimatedContent(
+                targetState = route,
+                transitionSpec = {
+                    (slideInHorizontally { it / 4 } + fadeIn()) togetherWith
+                        (slideOutHorizontally { -it / 4 } + fadeOut())
+                },
+                label = "routeSlide",
+            ) { animatedRoute ->
+            when (animatedRoute) {
                 is Route.Home -> {
                     val entries = listOf(
                         HomeEntry("All Songs", Icons.Filled.MusicNote, Color(0xFF6C7FD8), null) {
@@ -313,10 +481,10 @@ fun ResonanceApp(remote: PlayerRemote) {
                 }
 
                 is Route.Groups -> {
-                    val groups = remember(route.kind, songs) { buildGroups(route.kind, songs) }
+                    val groups = remember(animatedRoute.kind, songs) { buildGroups(animatedRoute.kind, songs) }
                     GroupsScreen(
-                        title = route.kind.title,
-                        icon = groupIcon(route.kind),
+                        title = animatedRoute.kind.title,
+                        icon = groupIcon(animatedRoute.kind),
                         groups = groups,
                         onBack = { pop() },
                         onOpen = { g -> push(Route.Songs(g.title, g.songs, g.icon)) },
@@ -324,7 +492,7 @@ fun ResonanceApp(remote: PlayerRemote) {
                 }
 
                 is Route.FolderTree -> FolderTreeScreen(
-                    path = route.path,
+                    path = animatedRoute.path,
                     allSongs = songs,
                     current = current,
                     onBack = { pop() },
@@ -334,22 +502,22 @@ fun ResonanceApp(remote: PlayerRemote) {
                 )
 
                 is Route.Songs -> SongsScreen(
-                    title = route.title,
-                    icon = route.icon,
-                    songs = route.songs,
+                    title = animatedRoute.title,
+                    icon = animatedRoute.icon,
+                    songs = animatedRoute.songs,
                     current = current,
-                    alphabetical = route.alphabetical,
+                    alphabetical = animatedRoute.alphabetical,
                     onBack = { pop() },
                     onPlay = playList,
                     onShuffle = shuffleList,
                     onPlayNext = playNext,
                     onAddToQueue = addToQueue,
                     onAddToPlaylist = addToPlaylist,
-                    onRemoveFromPlaylist = if (route.playlistId != null) {
+                    onRemoveFromPlaylist = if (animatedRoute.playlistId != null) {
                         { s ->
-                            PlaylistStore.removeSong(context, route.playlistId, s.id)
+                            PlaylistStore.removeSong(context, animatedRoute.playlistId, s.id)
                             playlists = PlaylistStore.all(context)
-                            stack[stack.lastIndex] = route.copy(songs = route.songs.filter { it.id != s.id })
+                            stack[stack.lastIndex] = animatedRoute.copy(songs = animatedRoute.songs.filter { it.id != s.id })
                         }
                     } else {
                         null
@@ -358,7 +526,7 @@ fun ResonanceApp(remote: PlayerRemote) {
                 )
 
                 is Route.Playlists -> PlaylistsScreen(
-                    playlists = playlists,
+                    playlists = playlists + smartPlaylists,
                     onBack = { pop() },
                     onOpen = { p ->
                         val list = p.songIds.mapNotNull { songById[it] }
@@ -369,8 +537,21 @@ fun ResonanceApp(remote: PlayerRemote) {
                         playlists = PlaylistStore.all(context)
                     },
                     onDelete = { p ->
-                        PlaylistStore.delete(context, p.id)
-                        playlists = PlaylistStore.all(context)
+                        if (p.id.startsWith("smart:")) {
+                            SmartPlaylistStore.delete(context, p.id.removePrefix("smart:"))
+                            settingsTick++
+                        } else {
+                            PlaylistStore.delete(context, p.id)
+                            playlists = PlaylistStore.all(context)
+                        }
+                    },
+                    onImport = { importPlaylistLauncher.launch(arrayOf("audio/x-mpegurl", "audio/mpegurl", "audio/x-scpls", "application/pls", "application/vnd.ms-wpl", "text/plain")) },
+                    onExport = { p ->
+                        if (p.id.startsWith("smart:")) toast("Smart playlists cannot be exported yet")
+                        else {
+                            exportTarget = p
+                            exportPlaylistLauncher.launch("${p.name}.m3u")
+                        }
                     },
                 )
 
@@ -381,7 +562,7 @@ fun ResonanceApp(remote: PlayerRemote) {
                         songById = songById,
                         currentIndex = remote.currentIndex,
                         onBack = { pop() },
-                        onJump = { i -> remote.jumpTo(i) },
+                        onJump = { i -> capturePlaybackSource(); remote.jumpTo(i) },
                         onRemove = { i -> remote.removeAt(i) },
                     )
                 }
@@ -414,9 +595,13 @@ fun ResonanceApp(remote: PlayerRemote) {
                         song = current,
                         visualizerMode = visualizerMode,
                         swipeTracks = AppSettings.swipeTracks(context),
+                        playerLayout = AppSettings.playerLayout(context),
+                        gestureSensitivity = AppSettings.gestureSensitivity(context),
                         sleepEnd = sleepEnd,
                         onOpenSleep = { showSleep = true },
                         onMore = { showPlayerMenu = true },
+                        onArtTap = { goToPlaybackSource() },
+                        onSwipeSection = { direction -> swipeLibrarySection(direction) },
                         onRatingChanged = {
                             likedIds = RatingManager.likedIds(context)
                             dislikedIds = RatingManager.dislikedIds(context)
@@ -428,8 +613,8 @@ fun ResonanceApp(remote: PlayerRemote) {
                     }
                 }
             }
+            }
         }
-
         if (route !is Route.Player && current != null) {
             MiniPlayerHost(remote = remote, song = current, onOpen = { push(Route.Player) })
         }
@@ -521,7 +706,31 @@ fun ResonanceApp(remote: PlayerRemote) {
                         showPlayerMenu = false
                         push(Route.Queue)
                     }) { Text("Show queue") }
+                    TextButton(onClick = {
+                        showPlayerMenu = false
+                        showTagEditor = true
+                    }) { Text("Edit tags") }
                 }
+            },
+        )
+    }
+
+    if (showTagEditor && current != null) {
+        TagEditorDialog(
+            song = current,
+            onDismiss = { showTagEditor = false },
+            onSave = { values ->
+                showTagEditor = false
+                if (!TagEditor.update(
+                        context, current, values.title, values.artist, values.album, values.genre,
+                        values.trackNumber, values.year, values.composer, values.albumArtist,
+                    )) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                        pendingTagEdit = current to values
+                        val request = MediaStore.createWriteRequest(context.contentResolver, listOf(current.uri))
+                        tagWriteLauncher.launch(IntentSenderRequest.Builder(request.intentSender).build())
+                    } else toast("Android denied metadata write access")
+                } else scanTick++
             },
         )
     }
@@ -565,15 +774,21 @@ private fun PlayerHost(
     song: Song,
     visualizerMode: Int,
     swipeTracks: Boolean,
+    playerLayout: Int,
+    gestureSensitivity: Int,
     sleepEnd: Long,
     onOpenSleep: () -> Unit,
     onMore: () -> Unit,
+    onArtTap: () -> Unit,
+    onSwipeSection: (Int) -> Unit,
     onRatingChanged: () -> Unit,
 ) {
     NowPlayingScreen(
         song = song,
         visualizerMode = visualizerMode,
         swipeTracks = swipeTracks,
+        playerLayout = playerLayout,
+        gestureSensitivity = gestureSensitivity,
         isPlaying = remote.isPlaying,
         positionMs = remote.positionMs,
         durationMs = if (remote.durationMs > 0) remote.durationMs else song.duration,
@@ -589,6 +804,8 @@ private fun PlayerHost(
         onCycleRepeat = { remote.cycleRepeat() },
         onOpenSleep = onOpenSleep,
         onMore = onMore,
+        onArtTap = onArtTap,
+        onSwipeSection = onSwipeSection,
         onRatingChanged = onRatingChanged,
     )
 }
@@ -692,12 +909,13 @@ private fun BottomBar(
     onSearch: () -> Unit,
     onMenu: () -> Unit,
 ) {
+    val palette = LocalResonancePalette.current
     Row(
         Modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 8.dp)
-            .clip(RoundedCornerShape(30.dp))
-            .background(Color(0xFF1B1B1B)),
+            .clip(RoundedCornerShape(ResonanceUi.RadiusCard))
+            .background(palette.surface),
         horizontalArrangement = Arrangement.SpaceEvenly,
     ) {
         NavIcon(Icons.Filled.Apps, "Library", selected == 0, onLibrary, Modifier.weight(1f))
@@ -715,13 +933,14 @@ private fun NavIcon(
     onClick: () -> Unit,
     modifier: Modifier,
 ) {
+    val palette = LocalResonancePalette.current
     Box(
         modifier.clickable(onClick = onClick).padding(vertical = 16.dp),
         contentAlignment = Alignment.Center,
     ) {
         Icon(
             icon, description,
-            tint = if (selected) Color.White else Color(0xFF8A8A8A),
+            tint = if (selected) palette.accent else palette.mutedText,
             modifier = Modifier.size(30.dp),
         )
     }

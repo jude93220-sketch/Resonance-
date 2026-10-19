@@ -1,10 +1,15 @@
 package com.resonance
 
+import android.content.Intent
+import android.provider.Settings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -23,6 +28,8 @@ import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -55,11 +62,12 @@ fun SettingsScreen(
     onChanged: () -> Unit,
 ) {
     var page by remember { mutableStateOf<String?>(null) }
+    val palette = LocalResonancePalette.current
     BackHandler(enabled = page != null) { page = null }
 
     val title = page ?: "Settings"
 
-    Column(Modifier.fillMaxSize()) {
+    Column(Modifier.fillMaxSize().background(palette.background)) {
         Row(
             Modifier
                 .fillMaxWidth()
@@ -70,7 +78,7 @@ fun SettingsScreen(
             IconButton(onClick = { if (page != null) page = null else onBack() }) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Color.White)
             }
-            Text(title, color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+            Text(title, color = palette.text, fontSize = 22.sp, fontWeight = FontWeight.Bold)
         }
 
         Column(
@@ -82,10 +90,14 @@ fun SettingsScreen(
             when (page) {
                 null -> {
                     LinkRow("Audio", "Equalizer, audio engine info") { page = "Audio" }
+                    LinkRow("Output Profiles", "Per-device EQ and AutoEQ presets") { page = "Output Profiles" }
+                    LinkRow("ReplayGain", "Normalize track or album loudness") { page = "ReplayGain" }
                     LinkRow("Playback", "Gapless playback and track transitions") { page = "Playback" }
                     LinkRow("Library", "Scanner and library options") { page = "Library" }
+                    LinkRow("Lyrics", "Local LRC/TXT files and optional online search") { page = "Lyrics" }
+                    LinkRow("Smart Playlists", "Rules for ratings, plays, recency, and metadata") { page = "Smart Playlists" }
                     LinkRow("Headset/Bluetooth", "Connection behaviour") { page = "Headset/Bluetooth" }
-                    LinkRow("Lock Screen", "Coming soon", enabled = false) { }
+                    LinkRow("Lock Screen", "Android media controls, artwork, privacy, and button layout") { page = "Lock Screen" }
                     LinkRow("Look and Feel", "Screen options") { page = "Look and Feel" }
                     LinkRow("Themes", "Midnight, graphite, blue, amber, and light") { page = "Themes" }
                     LinkRow("Background", "Colour and gradient") { page = "Background" }
@@ -94,9 +106,14 @@ fun SettingsScreen(
                 }
 
                 "Audio" -> AudioPage(onOpenEqualizer)
+                "Output Profiles" -> OutputProfilesPage()
+                "ReplayGain" -> ReplayGainPage()
                 "Playback" -> PlaybackPage(onChanged)
                 "Library" -> LibraryPage(songCount, onRescan)
+                "Lyrics" -> LyricsPage(onChanged)
+                "Smart Playlists" -> SmartPlaylistsPage(onChanged)
                 "Headset/Bluetooth" -> HeadsetPage(onChanged)
+                "Lock Screen" -> LockScreenPage(onChanged)
                 "Look and Feel" -> LookPage(onChanged)
                 "Themes" -> ThemesPage(onChanged)
                 "Background" -> BackgroundPage(onChanged)
@@ -110,6 +127,60 @@ fun SettingsScreen(
 // --------------------------------------------------------------------- pages
 
 @Composable
+private fun OutputProfilesPage() {
+    val context = LocalContext.current
+    var tick by remember { mutableIntStateOf(0) }
+    var importTarget by remember { mutableStateOf("wired") }
+    val importer = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            val text = try { context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } } catch (_: Throwable) { null }
+            val name = uri.lastPathSegment?.substringAfterLast('/') ?: "AutoEQ preset"
+            val profile = text?.let { AutoEqImporter.parse(name, it) }
+            if (profile != null) {
+                OutputProfileStore.save(context, profile.copy(key = importTarget))
+                tick++
+            }
+        }
+    }
+    SectionLabel("Output profiles")
+    Text(
+        "${OutputDiagnostics.summary(context)}\nProfiles are applied automatically when the matching output is connected.",
+        color = SubGrey,
+        fontSize = 13.sp,
+        modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+    )
+    listOf("speaker" to "Phone speaker", "wired" to "Wired headphones", "bluetooth" to "Bluetooth", "usb" to "USB DAC").forEach { (key, label) ->
+        val profile = remember(tick, key) { OutputProfileStore.profile(context, key) }
+        LinkRow(
+            label,
+            "${profile.eqPreset}${if (profile.autoEqName.isBlank()) "" else " · ${profile.autoEqName}"}",
+        ) {
+            importTarget = key
+            importer.launch(arrayOf("text/plain", "text/*"))
+        }
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            TextButton(onClick = {
+                val currentIndex = EqStore.BUILTIN.indexOfFirst { it.name == profile.eqPreset }.coerceAtLeast(0)
+                val preset = EqStore.BUILTIN[(currentIndex + 1) % EqStore.BUILTIN.size]
+                OutputProfileStore.save(context, profile.copy(eqPreset = preset.name, gains = preset.gains, preampDb = preset.preamp))
+                tick++
+            }) { Text("Preset: ${profile.eqPreset}") }
+            TextButton(onClick = {
+                OutputProfileStore.save(context, OutputProfile(key, label))
+                tick++
+            }) { Text("Reset") }
+        }
+    }
+    TextButton(onClick = {
+        importTarget = "wired"
+        importer.launch(arrayOf("text/plain", "text/*"))
+    }) { Text("Import AutoEQ for wired headphones") }
+}
+
+@Composable
 private fun AudioPage(onOpenEqualizer: () -> Unit) {
     val context = LocalContext.current
     var tick by remember { mutableIntStateOf(0) }
@@ -121,7 +192,17 @@ private fun AudioPage(onOpenEqualizer: () -> Unit) {
     }
 
     LinkRow("Equalizer", "10-band equalizer, preamp, bass/treble, limiter") { onOpenEqualizer() }
+    LinkRow("EQ Mode", "${EqStore.mode(context).replaceFirstChar { it.uppercase() }} mode") {
+        EqStore.setMode(context, if (EqStore.mode(context) == "graphic") "parametric" else "graphic")
+        tick++
+    }
+    LinkRow("Band Resolution", "${EqStore.bandCount(context)} bands on supported Android DSP") {
+        val next = when (EqStore.bandCount(context)) { 10 -> 20; 20 -> 32; else -> 10 }
+        EqStore.setBandCount(context, next)
+        tick++
+    }
     LinkRow("Audio Info", info) { tick++ }
+    LinkRow("Output Diagnostics", OutputDiagnostics.summary(context)) { tick++ }
     LinkRow("Reset equalizer", "Flat bands, preamp 0, bass 0%, treble 50%") {
         EqStore.resetAll(context)
         tick++
@@ -129,10 +210,40 @@ private fun AudioPage(onOpenEqualizer: () -> Unit) {
 }
 
 @Composable
+private fun ReplayGainPage() {
+    val context = LocalContext.current
+    var tick by remember { mutableIntStateOf(0) }
+    val selected = remember(tick) { AppSettings.replayGainMode(context) }
+    val modes = listOf(
+        "Off" to "Play files at their stored level",
+        "Track gain" to "Normalize each track independently",
+        "Album gain" to "Keep an album's tracks at a consistent level",
+    )
+    SectionLabel("ReplayGain")
+    modes.forEachIndexed { index, entry ->
+        LinkRow(
+            title = if (index == selected) "✓ ${entry.first}" else entry.first,
+            subtitle = entry.second,
+        ) {
+            AppSettings.putInt(context, AppSettings.K_REPLAY_GAIN_MODE, index)
+            tick++
+        }
+    }
+    Text(
+        "Rescan the library after changing this setting so ReplayGain tags are loaded.",
+        color = SubGrey,
+        fontSize = 13.sp,
+        modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
+    )
+}
+
+@Composable
 private fun PlaybackPage(onChanged: () -> Unit) {
     val context = LocalContext.current
     var tick by remember { mutableIntStateOf(0) }
     var crossfade by remember(tick) { mutableIntStateOf(AppSettings.crossfadeMs(context)) }
+    var tempo by remember(tick) { mutableIntStateOf(AppSettings.tempo(context)) }
+    var reverb by remember(tick) { mutableIntStateOf(AppSettings.reverb(context)) }
 
     SectionLabel("Transition")
     LinkRow(
@@ -151,8 +262,23 @@ private fun PlaybackPage(onChanged: () -> Unit) {
         AppSettings.putInt(context, AppSettings.K_CROSSFADE_MS, crossfade)
         onChanged()
     }
+    SliderRow(
+        title = "Tempo",
+        valueLabel = "${tempo}%",
+        value = tempo.toFloat(), range = 50f..150f, steps = 19,
+        footer = "Uses Media3 time scaling while preserving the current pitch.",
+    ) {
+        tempo = it.roundToInt()
+        AppSettings.setTempo(context, tempo)
+        onChanged()
+    }
+    LinkRow("Reverb", when (reverb) { 1 -> "Small room"; 2 -> "Medium room"; 3 -> "Large hall"; else -> "Off" }) {
+        reverb = (reverb + 1) % 4
+        AppSettings.setReverb(context, reverb)
+        onChanged()
+    }
     LinkRow("Restore Defaults", null) {
-        AppSettings.restore(context, AppSettings.K_CROSSFADE_MS)
+        AppSettings.restore(context, AppSettings.K_CROSSFADE_MS, AppSettings.K_TEMPO, AppSettings.K_REVERB)
         tick++
         onChanged()
     }
@@ -163,7 +289,44 @@ private fun LibraryPage(songCount: Int, onRescan: () -> Unit) {
     val context = LocalContext.current
     var tick by remember { mutableIntStateOf(0) }
     var seconds by remember(tick) { mutableIntStateOf(AppSettings.minTrackSeconds(context)) }
+    var excluded by remember(tick) { mutableStateOf(AppSettings.excludedFolders(context).joinToString("\n")) }
+    var folders by remember(tick) { mutableStateOf(AppSettings.scanFolderUris(context)) }
+    val folderPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+        if (uri != null) {
+            try {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+                )
+            } catch (_: SecurityException) {
+                try { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (_: Throwable) { }
+            }
+            folders = (folders + uri.toString()).distinct()
+            AppSettings.saveScanFolderUris(context, folders)
+            tick++
+        }
+    }
 
+    SectionLabel("Music folders")
+    Text(
+        "Only selected folders are scanned. This keeps WhatsApp, notification, and recorder audio out of your music library.",
+        color = SubGrey,
+        fontSize = 13.sp,
+        modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+    )
+    folders.forEach { uri ->
+        val label = AppSettings.scanFolderPath(uri)?.trimEnd('/')?.substringAfterLast('/')?.ifBlank { "Storage root" }
+            ?: uri.substringAfterLast('/').ifBlank { "Selected folder" }
+        LinkRow(label, "Tap to remove from scan") {
+            folders = folders.filterNot { it == uri }
+            AppSettings.saveScanFolderUris(context, folders)
+            tick++
+        }
+    }
+    LinkRow("Add folder", "Choose a music folder using Android's secure folder picker") { folderPicker.launch(null) }
+    if (folders.isEmpty()) {
+        Text("No music folders selected. Add a folder, then tap Rescan.", color = SubGrey, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp))
+    }
     LinkRow("Rescan", "Songs: $songCount") { onRescan() }
     SliderRow(
         title = "Ignore Short Tracks (Notifications, etc.)",
@@ -174,9 +337,128 @@ private fun LibraryPage(songCount: Int, onRescan: () -> Unit) {
         seconds = it.roundToInt()
         AppSettings.putInt(context, AppSettings.K_MIN_SECONDS, seconds)
     }
+    TextField(
+        value = excluded,
+        onValueChange = {
+            excluded = it
+            AppSettings.saveExcludedFolders(context, it)
+        },
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
+        label = { Text("Excluded folders") },
+        supportingText = { Text("One absolute folder path per line. Tap Rescan after changing.") },
+        minLines = 2,
+    )
     LinkRow("Restore Defaults", null) {
-        AppSettings.restore(context, AppSettings.K_MIN_SECONDS)
+        AppSettings.restore(context, AppSettings.K_MIN_SECONDS, AppSettings.K_EXCLUDED_FOLDERS, AppSettings.K_SCAN_FOLDERS)
+        excluded = ""
+        folders = emptyList()
         tick++
+    }
+}
+
+@Composable
+private fun LockScreenPage(onChanged: () -> Unit) {
+    val context = LocalContext.current
+    var tick by remember { mutableIntStateOf(0) }
+    var controls by remember(tick) { mutableStateOf(AppSettings.lockScreenControls(context)) }
+    var artwork by remember(tick) { mutableStateOf(AppSettings.lockScreenArtwork(context)) }
+    var hideContent by remember(tick) { mutableStateOf(AppSettings.lockScreenHideContent(context)) }
+    val buttonLayouts = listOf("Previous · Play/Pause · Next", "Rewind · Play/Pause · Fast-forward", "Previous · Play/Pause · Next · Queue")
+
+    SectionLabel("Android media controls")
+    SwitchRow("Show controls on the lock screen", "Uses the Android media widget and notification controls", controls) {
+        controls = it
+        AppSettings.putBool(context, AppSettings.K_LOCKSCREEN_CONTROLS, it)
+        onChanged()
+    }
+    SwitchRow("Show album artwork", "Display artwork in the lock-screen media widget when supported", artwork) {
+        artwork = it
+        AppSettings.putBool(context, AppSettings.K_LOCKSCREEN_ARTWORK, it)
+        onChanged()
+    }
+    SwitchRow("Hide media details", "Hide title and artist in notification content when the device supports private lock-screen notifications", hideContent) {
+        hideContent = it
+        AppSettings.putBool(context, AppSettings.K_LOCKSCREEN_HIDE_CONTENT, it)
+        onChanged()
+    }
+    LinkRow("Lock-screen button layout", buttonLayouts[AppSettings.lockScreenButtons(context)]) {
+        AppSettings.putInt(context, AppSettings.K_LOCKSCREEN_BUTTONS, (AppSettings.lockScreenButtons(context) + 1) % buttonLayouts.size)
+        tick++
+        onChanged()
+    }
+    LinkRow("Android notification settings", "Open system controls for lock-screen visibility and sensitive content") {
+        context.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+            putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+        })
+    }
+    Text(
+        "Poweramp-style lock-screen playback is delivered through Android's MediaSession widget. The operating system may still control whether it appears and which center controls are available.",
+        color = SubGrey,
+        fontSize = 13.sp,
+        modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
+    )
+    LinkRow("Restore Defaults", null) {
+        AppSettings.restore(context, AppSettings.K_LOCKSCREEN_CONTROLS, AppSettings.K_LOCKSCREEN_ARTWORK, AppSettings.K_LOCKSCREEN_HIDE_CONTENT, AppSettings.K_LOCKSCREEN_BUTTONS)
+        tick++
+        onChanged()
+    }
+}
+
+@Composable
+private fun LyricsPage(onChanged: () -> Unit) {
+    val context = LocalContext.current
+    var tick by remember { mutableIntStateOf(0) }
+    var online by remember(tick) { mutableStateOf(AppSettings.lyricsOnline(context)) }
+
+    SectionLabel("Lyrics source")
+    LinkRow("Local lyrics", "Automatically reads matching .lrc and .txt files beside the audio file") { }
+    SwitchRow("Search online when local lyrics are missing", "Uses LRCLIB only after you opt in; synchronized lyrics are time-aligned when available", online) {
+        online = it
+        AppSettings.putBool(context, AppSettings.K_LYRICS_ONLINE, it)
+        tick++
+        onChanged()
+    }
+    Text(
+        "Online lookup sends the current title, artist, and album to LRCLIB. Resonance does not upload your audio files.",
+        color = SubGrey,
+        fontSize = 13.sp,
+        modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
+    )
+    LinkRow("Restore Defaults", null) {
+        AppSettings.restore(context, AppSettings.K_LYRICS_ONLINE)
+        tick++
+        onChanged()
+    }
+}
+
+@Composable
+private fun SmartPlaylistsPage(onChanged: () -> Unit) {
+    val context = LocalContext.current
+    var tick by remember { mutableIntStateOf(0) }
+    val existing = remember(tick) { SmartPlaylistStore.all(context) }
+    SectionLabel("Saved smart playlists")
+    existing.forEach { rule ->
+        LinkRow(rule.name, "Tap the playlist to view live results") {
+            SmartPlaylistStore.delete(context, rule.id)
+            tick++
+            onChanged()
+        }
+    }
+    SectionLabel("Add a rule")
+    LinkRow("Liked songs", "Songs marked with a thumbs-up") {
+        SmartPlaylistStore.add(context, SmartPlaylist(System.currentTimeMillis().toString(), "Liked songs", likedOnly = true))
+        tick++
+        onChanged()
+    }
+    LinkRow("Most played", "Songs started at least five times") {
+        SmartPlaylistStore.add(context, SmartPlaylist(System.currentTimeMillis().toString(), "Most played", minPlays = 5))
+        tick++
+        onChanged()
+    }
+    LinkRow("Recently added", "Music added in the last 30 days") {
+        SmartPlaylistStore.add(context, SmartPlaylist(System.currentTimeMillis().toString(), "Recently added", addedWithinDays = 30))
+        tick++
+        onChanged()
     }
 }
 
@@ -257,8 +539,24 @@ private fun LookPage(onChanged: () -> Unit) {
         AppSettings.putBool(context, AppSettings.K_SWIPE_TRACKS, it)
         onChanged()
     }
+    LinkRow("Player Layout", if (AppSettings.playerLayout(context) == 0) "Classic" else "Compact") {
+        AppSettings.setPlayerLayout(context, 1 - AppSettings.playerLayout(context))
+        tick++
+        onChanged()
+    }
+    LinkRow("Swipe Sensitivity", "${AppSettings.gestureSensitivity(context)} px threshold") {
+        val next = when (AppSettings.gestureSensitivity(context)) { 80 -> 120; 120 -> 40; else -> 80 }
+        AppSettings.setGestureSensitivity(context, next)
+        tick++
+        onChanged()
+    }
+    LinkRow("Widget Style", if (AppSettings.widgetStyle(context) == 0) "Midnight" else "Accent") {
+        AppSettings.setWidgetStyle(context, 1 - AppSettings.widgetStyle(context))
+        tick++
+        onChanged()
+    }
     LinkRow("Restore Defaults", null) {
-        AppSettings.restore(context, AppSettings.K_KEEP_ON, AppSettings.K_SWIPE_TRACKS)
+        AppSettings.restore(context, AppSettings.K_KEEP_ON, AppSettings.K_SWIPE_TRACKS, AppSettings.K_PLAYER_LAYOUT, AppSettings.K_GESTURE_SENSITIVITY, AppSettings.K_WIDGET_STYLE)
         tick++
         onChanged()
     }
@@ -315,28 +613,32 @@ private fun AboutPage() {
 
 @Composable
 private fun SectionLabel(text: String) {
+    val palette = LocalResonancePalette.current
     Text(
-        text, color = SubGrey, fontSize = 14.sp,
+        text.uppercase(), color = palette.accent, fontSize = ResonanceUi.SectionSize, fontWeight = FontWeight.Bold,
         modifier = Modifier.padding(start = 20.dp, top = 16.dp, bottom = 4.dp),
     )
 }
 
 @Composable
 private fun LinkRow(title: String, subtitle: String?, enabled: Boolean = true, onClick: () -> Unit) {
+    val palette = LocalResonancePalette.current
     Column(
         Modifier
             .fillMaxWidth()
+            .clip(RoundedCornerShape(ResonanceUi.RadiusControl))
+            .background(if (enabled) palette.surface.copy(alpha = 0.72f) else palette.surface.copy(alpha = 0.25f))
             .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 20.dp, vertical = 16.dp)
+            .padding(horizontal = 16.dp, vertical = ResonanceUi.RowVertical)
     ) {
         Text(
             title, fontSize = 18.sp, fontWeight = FontWeight.Bold,
-            color = if (enabled) Color.White else Color(0xFF6A6A6A),
+            color = if (enabled) palette.text else palette.text.copy(alpha = 0.35f),
         )
         if (subtitle != null) {
             Text(
-                subtitle, fontSize = 14.sp, fontWeight = FontWeight.Medium,
-                color = if (enabled) SubGrey else Color(0xFF555555),
+                subtitle, fontSize = ResonanceUi.CaptionSize, fontWeight = FontWeight.Medium,
+                color = if (enabled) palette.mutedText else palette.text.copy(alpha = 0.25f),
                 modifier = Modifier.padding(top = 3.dp),
             )
         }
@@ -345,18 +647,21 @@ private fun LinkRow(title: String, subtitle: String?, enabled: Boolean = true, o
 
 @Composable
 private fun SwitchRow(title: String, subtitle: String?, checked: Boolean, onChange: (Boolean) -> Unit) {
+    val palette = LocalResonancePalette.current
     Row(
         Modifier
             .fillMaxWidth()
             .clickable { onChange(!checked) }
-            .padding(horizontal = 20.dp, vertical = 14.dp),
+            .clip(RoundedCornerShape(ResonanceUi.RadiusControl))
+            .background(palette.surface.copy(alpha = 0.72f))
+            .padding(horizontal = 16.dp, vertical = ResonanceUi.RowVertical),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f).padding(end = 12.dp)) {
-            Text(title, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text(title, color = palette.text, fontSize = ResonanceUi.BodySize, fontWeight = FontWeight.Bold)
             if (subtitle != null) {
                 Text(
-                    subtitle, color = SubGrey, fontSize = 14.sp, fontWeight = FontWeight.Medium,
+                    subtitle, color = palette.mutedText, fontSize = ResonanceUi.CaptionSize, fontWeight = FontWeight.Medium,
                     modifier = Modifier.padding(top = 3.dp),
                 )
             }
@@ -365,8 +670,8 @@ private fun SwitchRow(title: String, subtitle: String?, checked: Boolean, onChan
             checked = checked,
             onCheckedChange = onChange,
             colors = SwitchDefaults.colors(
-                checkedThumbColor = PaBlue,
-                checkedTrackColor = Color(0xFF263A66),
+                checkedThumbColor = palette.accent,
+                checkedTrackColor = palette.accent.copy(alpha = 0.45f),
                 checkedBorderColor = Color.Transparent,
                 uncheckedThumbColor = Color(0xFFBDBDBD),
                 uncheckedTrackColor = Color(0xFF3A3A3A),
@@ -386,10 +691,11 @@ private fun SliderRow(
     footer: String? = null,
     onChange: (Float) -> Unit,
 ) {
-    Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp)) {
-        Text(title, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+    val palette = LocalResonancePalette.current
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(ResonanceUi.RadiusControl)).background(palette.surface.copy(alpha = 0.72f)).padding(horizontal = 16.dp, vertical = ResonanceUi.RowVertical)) {
+        Text(title, color = palette.text, fontSize = ResonanceUi.BodySize, fontWeight = FontWeight.Bold)
         Text(
-            valueLabel, color = SubGrey, fontSize = 14.sp, fontWeight = FontWeight.Medium,
+            valueLabel, color = palette.mutedText, fontSize = ResonanceUi.CaptionSize, fontWeight = FontWeight.Medium,
             modifier = Modifier.padding(top = 3.dp),
         )
         Slider(
@@ -398,9 +704,9 @@ private fun SliderRow(
             valueRange = range,
             steps = steps,
             colors = SliderDefaults.colors(
-                thumbColor = PaBlue,
-                activeTrackColor = PaBlue,
-                inactiveTrackColor = Color(0xFF555555),
+                thumbColor = palette.accent,
+                activeTrackColor = palette.accent,
+                inactiveTrackColor = palette.text.copy(alpha = 0.22f),
                 activeTickColor = Color.Transparent,
                 inactiveTickColor = Color.Transparent,
             ),

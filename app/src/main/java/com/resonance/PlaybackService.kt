@@ -3,12 +3,16 @@ package com.resonance
 import android.content.SharedPreferences
 import android.app.PendingIntent
 import android.content.Intent
+import android.media.AudioDeviceCallback
+import android.media.AudioDeviceInfo
+import android.media.AudioManager
 import android.media.audiofx.AudioEffect
 import android.media.audiofx.BassBoost
 import android.media.audiofx.DynamicsProcessing
 import android.media.audiofx.Equalizer
 import android.media.audiofx.LoudnessEnhancer
 import android.media.audiofx.Virtualizer
+import android.media.audiofx.PresetReverb
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -22,6 +26,7 @@ import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import kotlin.math.max
 import kotlin.math.roundToInt
+import kotlin.math.pow
 
 /**
  * Runs the music player in the background: keeps playing when the app is closed,
@@ -41,8 +46,15 @@ class PlaybackService : MediaSessionService(), SharedPreferences.OnSharedPrefere
     private var loudness: LoudnessEnhancer? = null
     private var bassBoost: BassBoost? = null
     private var virtualizer: Virtualizer? = null
+    private var reverb: PresetReverb? = null
     private var lastMediaId: String? = null
     private var fadeInStartedAt = 0L
+    private var replayGainMultiplier = 1f
+    private var audioManager: AudioManager? = null
+    private val outputCallback = object : AudioDeviceCallback() {
+        override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>) = applyOutputProfile()
+        override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>) = applyOutputProfile()
+    }
 
     private val handler = Handler(Looper.getMainLooper())
     private val sleepRunnable = Runnable {
@@ -98,6 +110,7 @@ class PlaybackService : MediaSessionService(), SharedPreferences.OnSharedPrefere
                     }
                 }
                 lastMediaId = newId
+                updateReplayGain(mediaItem)
                 savePlaybackState()
                 notifyWidget()
             }
@@ -132,8 +145,15 @@ class PlaybackService : MediaSessionService(), SharedPreferences.OnSharedPrefere
             .setSessionActivity(sessionActivity)
             .build()
         restorePlaybackState(exo)
+        updateReplayGain(exo.currentMediaItem)
+        applyPlaybackParameters()
 
         setupEffects(exo.audioSessionId)
+        audioManager = getSystemService(AUDIO_SERVICE) as? AudioManager
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            audioManager?.registerAudioDeviceCallback(outputCallback, handler)
+        }
+        applyOutputProfile()
         AudioPrefs.prefs(this).registerOnSharedPreferenceChangeListener(this)
         EqStore.prefs(this).registerOnSharedPreferenceChangeListener(this)
         AppSettings.prefs(this).registerOnSharedPreferenceChangeListener(this)
@@ -153,6 +173,7 @@ class PlaybackService : MediaSessionService(), SharedPreferences.OnSharedPrefere
         AudioPrefs.prefs(this).unregisterOnSharedPreferenceChangeListener(this)
         EqStore.prefs(this).unregisterOnSharedPreferenceChangeListener(this)
         AppSettings.prefs(this).unregisterOnSharedPreferenceChangeListener(this)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) audioManager?.unregisterAudioDeviceCallback(outputCallback)
         releaseEffects()
         mediaSession?.let {
             it.player.release()
@@ -194,6 +215,48 @@ class PlaybackService : MediaSessionService(), SharedPreferences.OnSharedPrefere
         sendBroadcast(Intent(ResonanceWidget.ACTION_REFRESH).setPackage(packageName))
     }
 
+    private fun outputKey(): String {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return "speaker"
+        val devices = audioManager?.getDevices(AudioManager.GET_DEVICES_OUTPUTS).orEmpty()
+        return when {
+            devices.any { it.type == AudioDeviceInfo.TYPE_USB_DEVICE || it.type == AudioDeviceInfo.TYPE_USB_HEADSET } -> "usb"
+            devices.any { it.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP || it.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO } -> "bluetooth"
+            devices.any { it.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES || it.type == AudioDeviceInfo.TYPE_WIRED_HEADSET } -> "wired"
+            else -> "speaker"
+        }
+    }
+
+    private fun applyOutputProfile() {
+        val profile = OutputProfileStore.profile(this, outputKey())
+        val preset = EqStore.BUILTIN.firstOrNull { it.name == profile.eqPreset }
+        if (profile.gains.size == EqStore.FREQS.size) {
+            EqStore.saveGains(this, profile.gains)
+            EqStore.savePreamp(this, profile.preampDb)
+        } else if (preset != null) {
+            EqStore.saveGains(this, preset.gains)
+            EqStore.savePreamp(this, preset.preamp + profile.preampDb)
+        } else if (profile.preampDb != 0f) {
+            EqStore.savePreamp(this, profile.preampDb)
+        }
+        applyEffects()
+    }
+
+    private fun updateReplayGain(item: MediaItem?) {
+        val mode = AppSettings.replayGainMode(this)
+        if (mode == 0 || item == null) {
+            replayGainMultiplier = 1f
+            return
+        }
+        val extras = item.mediaMetadata.extras
+        val key = if (mode == 1) "resonance_replaygain_track" else "resonance_replaygain_album"
+        val db = extras?.getFloat(key, Float.NaN) ?: Float.NaN
+        replayGainMultiplier = if (db.isFinite()) {
+            10f.pow(db / 20f).coerceIn(0.25f, 1.5f)
+        } else {
+            1f
+        }
+    }
+
     /**
      * Media3 1.4 has no built-in two-deck crossfader. This preserves queue semantics and provides
      * a safe transition ramp: the outgoing item fades down before the queue advances, and the
@@ -204,14 +267,14 @@ class PlaybackService : MediaSessionService(), SharedPreferences.OnSharedPrefere
         val exo = player ?: return
         val fade = AppSettings.crossfadeMs(this)
         if (fade <= 0) {
-            if (exo.volume != 1f) exo.volume = 1f
+            if (exo.volume != replayGainMultiplier) exo.volume = replayGainMultiplier
             fadeInStartedAt = 0L
             return
         }
         if (fadeInStartedAt > 0L) {
             val fraction =
                 ((System.currentTimeMillis() - fadeInStartedAt).toFloat() / fade).coerceIn(0f, 1f)
-            exo.volume = fraction
+            exo.volume = replayGainMultiplier * fraction
             if (fraction >= 1f) fadeInStartedAt = 0L
             return
         }
@@ -219,9 +282,9 @@ class PlaybackService : MediaSessionService(), SharedPreferences.OnSharedPrefere
         val hasFollowingItem = exo.hasNextMediaItem() || exo.repeatMode == Player.REPEAT_MODE_ALL
         val remaining = exo.duration - exo.currentPosition
         if (hasFollowingItem && remaining in 1..fade.toLong()) {
-            exo.volume = (remaining.toFloat() / fade).coerceIn(0f, 1f)
+            exo.volume = replayGainMultiplier * (remaining.toFloat() / fade).coerceIn(0f, 1f)
         } else if (remaining > fade) {
-            exo.volume = 1f
+            exo.volume = replayGainMultiplier
         }
     }
 
@@ -230,11 +293,14 @@ class PlaybackService : MediaSessionService(), SharedPreferences.OnSharedPrefere
     override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences?, key: String?) {
         if (key == null) return
         if (key in EqStore.KEYS) {
-            applyEffects()
+            if (key == EqStore.K_BAND_COUNT) setupEffects(player?.audioSessionId ?: 0) else applyEffects()
         } else if (key == AudioPrefs.K_SLEEP_END) {
             scheduleSleep()
         } else if (key == AppSettings.K_PAUSE_NOISY) {
             player?.setHandleAudioBecomingNoisy(AppSettings.pauseOnDisconnect(this))
+        } else if (key == AppSettings.K_TEMPO || key == AppSettings.K_REVERB) {
+            applyPlaybackParameters()
+            applyEnhancers(EqStore.master(this))
         }
     }
 
@@ -258,6 +324,7 @@ class PlaybackService : MediaSessionService(), SharedPreferences.OnSharedPrefere
 
         try { bassBoost = BassBoost(0, sessionId) } catch (t: Throwable) { bassBoost = null }
         try { virtualizer = Virtualizer(0, sessionId) } catch (t: Throwable) { virtualizer = null }
+        try { reverb = PresetReverb(0, sessionId) } catch (t: Throwable) { reverb = null }
 
         var engine = ""
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
@@ -293,7 +360,7 @@ class PlaybackService : MediaSessionService(), SharedPreferences.OnSharedPrefere
         val config = DynamicsProcessing.Config.Builder(
             DynamicsProcessing.VARIANT_FAVOR_FREQUENCY_RESOLUTION,
             2,
-            true, EqStore.FREQS.size,
+            true, EqStore.frequencies(this).size,
             false, 0,
             false, 0,
             true,
@@ -343,8 +410,10 @@ class PlaybackService : MediaSessionService(), SharedPreferences.OnSharedPrefere
 
     @RequiresApi(Build.VERSION_CODES.P)
     private fun applyDsp(dp: DynamicsProcessing, snap: EqStore.Snapshot) {
-        val n = EqStore.FREQS.size
-        val edges = EqStore.bandEdges()
+        val n = snap.frequencies.size
+        val edges = FloatArray(n) { i ->
+            if (i == n - 1) 20000f else kotlin.math.sqrt(snap.frequencies[i].toFloat() * snap.frequencies[i + 1].toFloat())
+        }
 
         val eq = DynamicsProcessing.Eq(true, true, n)
         for (i in 0 until n) {
@@ -374,6 +443,21 @@ class PlaybackService : MediaSessionService(), SharedPreferences.OnSharedPrefere
             virtualizer?.setEnabled(master && width > 0)
         } catch (t: Throwable) {
         }
+        try {
+            val preset = when (AppSettings.reverb(this)) {
+                1 -> PresetReverb.PRESET_SMALLROOM
+                2 -> PresetReverb.PRESET_MEDIUMROOM
+                else -> PresetReverb.PRESET_LARGEHALL
+            }
+            reverb?.setPreset(preset)
+            reverb?.setEnabled(master && AppSettings.reverb(this) > 0)
+        } catch (t: Throwable) {
+        }
+    }
+
+    private fun applyPlaybackParameters() {
+        val speed = AppSettings.tempo(this) / 100f
+        try { player?.setPlaybackSpeed(speed) } catch (_: Throwable) { }
     }
 
     private fun releaseEffects() {
@@ -382,10 +466,12 @@ class PlaybackService : MediaSessionService(), SharedPreferences.OnSharedPrefere
         try { loudness?.release() } catch (t: Throwable) { }
         try { bassBoost?.release() } catch (t: Throwable) { }
         try { virtualizer?.release() } catch (t: Throwable) { }
+        try { reverb?.release() } catch (t: Throwable) { }
         dsp = null
         equalizer = null
         loudness = null
         bassBoost = null
         virtualizer = null
+        reverb = null
     }
 }

@@ -28,6 +28,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material.icons.filled.FastRewind
+import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -46,6 +47,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.animateFloat
@@ -58,6 +60,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
@@ -71,6 +74,8 @@ import androidx.media3.common.Player
 import kotlin.math.abs
 import kotlin.math.sin
 import kotlin.random.Random
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 private val PillDark = Color(0x66000000)
 
@@ -80,6 +85,8 @@ fun NowPlayingScreen(
     song: Song,
     visualizerMode: Int,
     swipeTracks: Boolean,
+    playerLayout: Int,
+    gestureSensitivity: Int,
     isPlaying: Boolean,
     positionMs: Long,
     durationMs: Long,
@@ -95,6 +102,8 @@ fun NowPlayingScreen(
     onCycleRepeat: () -> Unit,
     onOpenSleep: () -> Unit,
     onMore: () -> Unit,
+    onArtTap: () -> Unit,
+    onSwipeSection: (Int) -> Unit,
     onRatingChanged: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -103,7 +112,11 @@ fun NowPlayingScreen(
     var isLiked by remember(song.id) { mutableStateOf(RatingManager.isLiked(context, song.id)) }
     var isDisliked by remember(song.id) { mutableStateOf(RatingManager.isDisliked(context, song.id)) }
     var formatText by remember(song.id) { mutableStateOf("") }
-    LaunchedEffect(song.id) { formatText = AudioInfo.label(context, song) }
+    var lyrics by remember(song.id) { mutableStateOf<List<LyricsStore.Line>>(emptyList()) }
+    LaunchedEffect(song.id) {
+        formatText = AudioInfo.label(context, song)
+        lyrics = withContext(Dispatchers.IO) { LyricsStore.load(context, song) }
+    }
 
     val progress = if (durationMs > 0) (positionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f) else 0f
     var dragFraction by remember { mutableStateOf<Float?>(null) }
@@ -113,7 +126,7 @@ fun NowPlayingScreen(
     val phase by transition.animateFloat(
         initialValue = 0f,
         targetValue = (2f * Math.PI).toFloat(),
-        animationSpec = infiniteRepeatable(tween(1100), RepeatMode.Restart),
+        animationSpec = infiniteRepeatable(tween(1800, easing = LinearEasing), RepeatMode.Restart),
         label = "visualizerPhase",
     )
 
@@ -129,12 +142,12 @@ fun NowPlayingScreen(
             .fillMaxSize()
             .padding(horizontal = 16.dp)
     ) {
-        Spacer(Modifier.weight(0.5f))
+        Spacer(Modifier.height(108.dp))
 
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .aspectRatio(1.75f)
+                .aspectRatio(1.77f)
                 .clip(RoundedCornerShape(28.dp))
                 .pointerInput(song.id, swipeTracks) {
                     var dragDistance = 0f
@@ -145,11 +158,14 @@ fun NowPlayingScreen(
                             change.consume()
                         },
                         onDragEnd = {
-                            if (swipeTracks && abs(dragDistance) >= 80f) {
+                            if (swipeTracks && abs(dragDistance) >= gestureSensitivity.toFloat()) {
                                 if (dragDistance < 0f) onNext() else onPrev()
                             }
                         },
                     )
+                }
+                .pointerInput(song.id) {
+                    detectTapGestures(onTap = { onArtTap() })
                 },
             contentAlignment = Alignment.Center,
         ) {
@@ -168,7 +184,7 @@ fun NowPlayingScreen(
             }
         }
 
-        Spacer(Modifier.weight(0.4f))
+        Spacer(Modifier.height(18.dp))
 
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -212,7 +228,11 @@ fun NowPlayingScreen(
 
         Spacer(Modifier.height(14.dp))
 
-        InfoPill(text = song.title, fontSize = 20.sp, weight = FontWeight.Bold)
+        InfoPill(
+            text = song.title,
+            fontSize = 20.sp,
+            weight = FontWeight.Bold,
+        )
         Spacer(Modifier.height(8.dp))
         InfoPill(text = "${song.artist} - ${song.album}", fontSize = 15.sp, weight = FontWeight.Medium)
 
@@ -222,6 +242,11 @@ fun NowPlayingScreen(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            PillIconButton(
+                Icons.Filled.GraphicEq, "Visualizer", width = 64.dp,
+                tint = palette.accent, onClick = onMore
+            )
+            Spacer(Modifier.weight(1f))
             PillIconButton(
                 Icons.Filled.Timer, "Sleep timer", width = 64.dp,
                 tint = if (sleepActive) palette.accent else Color.White, onClick = onOpenSleep
@@ -240,10 +265,10 @@ fun NowPlayingScreen(
             )
         }
 
-        Spacer(Modifier.weight(0.6f))
+        Spacer(Modifier.height(14.dp))
 
         Box(
-            modifier = Modifier.fillMaxWidth().height(130.dp),
+            modifier = Modifier.fillMaxWidth().height(292.dp),
             contentAlignment = Alignment.Center
         ) {
             Canvas(
@@ -278,20 +303,29 @@ fun NowPlayingScreen(
 
                 for (i in 0 until numBars) {
                     val base = bars[i % bars.size]
-                    val wave = (sin(phase + i * 0.38f) * 0.5f + 0.5f)
+                    val slowWave = sin(phase * 0.82f + i * 0.19f) * 0.5f + 0.5f
+                    val detailWave = sin(phase * 1.37f + i * 0.47f) * 0.5f + 0.5f
+                    val travellingWave = sin(phase * 0.58f - i * 0.12f) * 0.5f + 0.5f
+                    val pulse = (sin(phase * 0.44f) * 0.5f + 0.5f)
                     val level = when (visualizerMode) {
-                        ThemeStore.WAVE -> 0.25f + wave * 0.65f
-                        ThemeStore.PULSE -> 0.25f + ((sin(phase) * 0.5f + 0.5f) * 0.65f)
-                        else -> base * (if (isPlaying) 0.55f + wave * 0.65f else 1f)
-                    }.coerceIn(0.12f, 0.95f)
-                    val barHeight = size.height * level
+                        ThemeStore.WAVE -> 0.18f + slowWave * 0.42f + detailWave * 0.22f
+                        ThemeStore.PULSE -> 0.16f + pulse * 0.68f + detailWave * 0.10f
+                        else -> base * (0.30f + slowWave * 0.46f) + detailWave * 0.14f
+                    }
+                    val resting = if (isPlaying) 1f else 0.42f
+                    val barHeight = size.height * (level * resting).coerceIn(0.10f, 0.94f)
                     val x = i * (barWidth + gap) + barWidth / 2f
-                    val color = if (x < playedX) palette.accent else palette.visualizerRest
+                    val color = if (x < playedX) {
+                        palette.accent.copy(alpha = 0.76f + travellingWave * 0.24f)
+                    } else {
+                        palette.visualizerRest.copy(alpha = 0.45f + travellingWave * 0.35f)
+                    }
                     drawLine(
                         color = color,
                         start = Offset(x, centerY - barHeight / 2),
                         end = Offset(x, centerY + barHeight / 2),
-                        strokeWidth = barWidth
+                        strokeWidth = barWidth,
+                        cap = StrokeCap.Round,
                     )
                 }
             }
@@ -351,6 +385,18 @@ fun NowPlayingScreen(
             }
         }
 
+        if (lyrics.isNotEmpty()) {
+            val currentLine = lyrics.lastOrNull { it.timeMs <= shownElapsed } ?: lyrics.first()
+            Text(
+                currentLine.text,
+                color = palette.accent,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 2,
+                modifier = Modifier.align(Alignment.CenterHorizontally).padding(horizontal = 20.dp),
+            )
+        }
+
         Spacer(Modifier.height(10.dp))
     }
 }
@@ -389,9 +435,9 @@ private fun PillIconButton(
 }
 
 @Composable
-private fun InfoPill(text: String, fontSize: TextUnit, weight: FontWeight) {
+private fun InfoPill(text: String, fontSize: TextUnit, weight: FontWeight, modifier: Modifier = Modifier) {
     Box(
-        modifier = Modifier
+        modifier = modifier
             .clip(RoundedCornerShape(50))
             .background(PillDark)
             .padding(horizontal = 20.dp, vertical = 10.dp)

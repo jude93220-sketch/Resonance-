@@ -38,6 +38,10 @@ class ResonanceWidget : AppWidgetProvider() {
 
         fun update(context: Context, manager: AppWidgetManager, id: Int) {
             val views = RemoteViews(context.packageName, R.layout.widget_resonance)
+            if (AppSettings.widgetStyle(context) == 1) {
+                views.setInt(R.id.widget_container, "setBackgroundColor", 0xDD12335A.toInt())
+                views.setTextColor(R.id.widget_play_pause, 0xFFFFB300.toInt())
+            }
             views.setOnClickPendingIntent(
                 R.id.widget_previous,
                 commandIntent(context, ACTION_PREVIOUS),

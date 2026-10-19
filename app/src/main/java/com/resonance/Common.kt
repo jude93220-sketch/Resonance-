@@ -37,8 +37,8 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-val Accent = Color(0xFF00E5FF)
-val PillGrey = Color(0xFF1C1C1C)
+val Accent = ResonanceUi.Accent
+val PillGrey = ResonanceUi.SurfaceRaised
 
 /** Loads and caches album art (embedded art or MediaStore thumbnail). */
 object ArtLoader {
@@ -225,16 +225,10 @@ fun ArtCard(song: Song?, modifier: Modifier = Modifier) {
         bitmap = if (song == null) null else ArtLoader.load(context, song, 1024)
     }
 
-    Box(modifier.background(Color(0x33000000)), contentAlignment = Alignment.Center) {
+    Box(modifier.background(Color.Black), contentAlignment = Alignment.Center) {
         val b = bitmap
         if (b != null) {
             val img = b.asImageBitmap()
-            Image(
-                bitmap = img,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize().blur(32.dp),
-            )
             Image(
                 bitmap = img,
                 contentDescription = null,
