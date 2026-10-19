@@ -85,16 +85,16 @@ internal fun SongRow(
             .pointerInput(Unit) {
                 detectTapGestures(onTap = { tap() }, onLongPress = { long() })
             }
-            .padding(horizontal = 10.dp, vertical = 8.dp),
+            .padding(horizontal = 14.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(contentAlignment = Alignment.Center) {
-            AlbumArt(song, 128, Modifier.size(52.dp).clip(RoundedCornerShape(10.dp)))
+            AlbumArt(song, 160, Modifier.size(60.dp).clip(RoundedCornerShape(12.dp)))
             if (selected == true) {
                 Box(
                     Modifier
-                        .size(52.dp)
-                        .clip(RoundedCornerShape(10.dp))
+                        .size(60.dp)
+                        .clip(RoundedCornerShape(12.dp))
                         .background(Accent.copy(alpha = 0.75f)),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -107,7 +107,7 @@ internal fun SongRow(
             Text(
                 song.title,
                 color = if (isCurrent) palette.accent else palette.text,
-                fontSize = ResonanceUi.BodySize,
+                fontSize = 20.sp,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -116,7 +116,7 @@ internal fun SongRow(
                 Text(
                     "${song.artist} - ${song.album}",
                     color = palette.mutedText,
-                    fontSize = ResonanceUi.CaptionSize,
+                    fontSize = 14.sp,
                     fontWeight = FontWeight.Medium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -126,7 +126,7 @@ internal fun SongRow(
                 Text(
                     "${formatTime(song.duration)} | ${song.ext}",
                     color = palette.mutedText,
-                    fontSize = ResonanceUi.CaptionSize,
+                    fontSize = 14.sp,
                     fontWeight = FontWeight.Medium,
                 )
             }
@@ -167,20 +167,24 @@ internal fun LibraryPill(onBack: () -> Unit) {
 internal fun TitleRow(title: String, icon: ImageVector) {
     val palette = LocalResonancePalette.current
     Row(
-        Modifier.padding(horizontal = ResonanceUi.ScreenHorizontal, vertical = 14.dp),
+        Modifier.padding(horizontal = 24.dp, vertical = 18.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
-            Modifier.size(56.dp).clip(RoundedCornerShape(16.dp)).background(palette.accent.copy(alpha = 0.22f)),
+            Modifier.size(88.dp).clip(CircleShape).background(Color(0xFF7F90E0)),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(icon, null, tint = palette.accent, modifier = Modifier.size(30.dp))
+            if (title == "All Songs") {
+                Text("𝄞", color = Color(0xFF0A1322), fontSize = 58.sp, fontWeight = FontWeight.Bold)
+            } else {
+                Icon(icon, null, tint = Color(0xFF0A1322), modifier = Modifier.size(42.dp))
+            }
         }
         Spacer(Modifier.width(16.dp))
         Text(
             title,
             color = palette.text,
-            fontSize = ResonanceUi.TitleSize,
+            fontSize = 38.sp,
             fontWeight = FontWeight.Bold,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -280,7 +284,7 @@ fun SongsScreen(
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                    .padding(horizontal = 24.dp, vertical = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -395,7 +399,7 @@ private fun AlphabetStrip(firstIndex: IntArray, onJump: (Int) -> Unit, modifier:
     Column(
         modifier
             .fillMaxHeight()
-            .width(26.dp)
+            .width(30.dp)
             .pointerInput(Unit) {
                 detectTapGestures { offset ->
                     val li = (offset.y / size.height * Letters.size).toInt().coerceIn(0, Letters.lastIndex)
@@ -416,7 +420,7 @@ private fun AlphabetStrip(firstIndex: IntArray, onJump: (Int) -> Unit, modifier:
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Letters.forEach { ch ->
-            Text(ch.toString(), color = Color(0xFFB8C2CC), fontSize = 11.sp, fontWeight = FontWeight.Medium)
+            Text(ch.toString(), color = Color(0xFFB8C2CC), fontSize = 14.sp, fontWeight = FontWeight.Medium)
         }
     }
 }
