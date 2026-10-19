@@ -2,6 +2,8 @@ package com.resonance
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.net.Uri
+import android.provider.DocumentsContract
 
 /** Simple app-wide options that the Settings screens edit. */
 object AppSettings {
@@ -21,6 +23,11 @@ object AppSettings {
     const val K_WIDGET_STYLE = "widget_style"
     const val K_TEMPO = "tempo_percent"
     const val K_REVERB = "reverb_preset"
+    const val K_SCAN_FOLDERS = "scan_folders"
+    const val K_LOCKSCREEN_CONTROLS = "lockscreen_controls"
+    const val K_LOCKSCREEN_ARTWORK = "lockscreen_artwork"
+    const val K_LOCKSCREEN_HIDE_CONTENT = "lockscreen_hide_content"
+    const val K_LOCKSCREEN_BUTTONS = "lockscreen_buttons"
 
     fun prefs(context: Context): SharedPreferences =
         context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -50,6 +57,34 @@ object AppSettings {
     fun setTempo(c: Context, value: Int) = prefs(c).edit().putInt(K_TEMPO, value.coerceIn(50, 150)).apply()
     fun reverb(c: Context) = prefs(c).getInt(K_REVERB, 0).coerceIn(0, 3)
     fun setReverb(c: Context, value: Int) = prefs(c).edit().putInt(K_REVERB, value.coerceIn(0, 3)).apply()
+
+    fun scanFolderUris(c: Context): List<String> = prefs(c).getString(K_SCAN_FOLDERS, "")
+        ?.split("\n")?.map(String::trim)?.filter(String::isNotBlank)?.distinct().orEmpty()
+
+    fun saveScanFolderUris(c: Context, values: List<String>) = prefs(c).edit()
+        .putString(K_SCAN_FOLDERS, values.distinct().joinToString("\n")).apply()
+
+    /** Converts a persisted SAF tree URI into a filesystem root for MediaStore path filtering. */
+    fun scanFolderPath(uriString: String): String? = try {
+        val uri = Uri.parse(uriString)
+        val documentId = DocumentsContract.getTreeDocumentId(uri)
+        when {
+            documentId.startsWith("raw:") -> documentId.removePrefix("raw:")
+            documentId.startsWith("primary:") -> "/storage/emulated/0/${documentId.removePrefix("primary:")}".trimEnd('/')
+            documentId.contains(':') -> {
+                val (volume, relative) = documentId.split(':', limit = 2)
+                "/storage/$volume/$relative".trimEnd('/')
+            }
+            else -> null
+        }
+    } catch (_: Throwable) {
+        null
+    }
+
+    fun lockScreenControls(c: Context) = prefs(c).getBoolean(K_LOCKSCREEN_CONTROLS, true)
+    fun lockScreenArtwork(c: Context) = prefs(c).getBoolean(K_LOCKSCREEN_ARTWORK, true)
+    fun lockScreenHideContent(c: Context) = prefs(c).getBoolean(K_LOCKSCREEN_HIDE_CONTENT, false)
+    fun lockScreenButtons(c: Context) = prefs(c).getInt(K_LOCKSCREEN_BUTTONS, 0).coerceIn(0, 2)
 
     fun putBool(c: Context, key: String, v: Boolean) = prefs(c).edit().putBoolean(key, v).apply()
     fun putInt(c: Context, key: String, v: Int) = prefs(c).edit().putInt(key, v).apply()

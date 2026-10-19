@@ -1,5 +1,7 @@
 package com.resonance
 
+import android.content.Intent
+import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.BackHandler
@@ -94,7 +96,7 @@ fun SettingsScreen(
                     LinkRow("Library", "Scanner and library options") { page = "Library" }
                     LinkRow("Smart Playlists", "Rules for ratings, plays, recency, and metadata") { page = "Smart Playlists" }
                     LinkRow("Headset/Bluetooth", "Connection behaviour") { page = "Headset/Bluetooth" }
-                    LinkRow("Lock Screen", "Coming soon", enabled = false) { }
+                    LinkRow("Lock Screen", "Android media controls, artwork, privacy, and button layout") { page = "Lock Screen" }
                     LinkRow("Look and Feel", "Screen options") { page = "Look and Feel" }
                     LinkRow("Themes", "Midnight, graphite, blue, amber, and light") { page = "Themes" }
                     LinkRow("Background", "Colour and gradient") { page = "Background" }
@@ -109,6 +111,7 @@ fun SettingsScreen(
                 "Library" -> LibraryPage(songCount, onRescan)
                 "Smart Playlists" -> SmartPlaylistsPage(onChanged)
                 "Headset/Bluetooth" -> HeadsetPage(onChanged)
+                "Lock Screen" -> LockScreenPage(onChanged)
                 "Look and Feel" -> LookPage(onChanged)
                 "Themes" -> ThemesPage(onChanged)
                 "Background" -> BackgroundPage(onChanged)
@@ -285,7 +288,43 @@ private fun LibraryPage(songCount: Int, onRescan: () -> Unit) {
     var tick by remember { mutableIntStateOf(0) }
     var seconds by remember(tick) { mutableIntStateOf(AppSettings.minTrackSeconds(context)) }
     var excluded by remember(tick) { mutableStateOf(AppSettings.excludedFolders(context).joinToString("\n")) }
+    var folders by remember(tick) { mutableStateOf(AppSettings.scanFolderUris(context)) }
+    val folderPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+        if (uri != null) {
+            try {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+                )
+            } catch (_: SecurityException) {
+                try { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (_: Throwable) { }
+            }
+            folders = (folders + uri.toString()).distinct()
+            AppSettings.saveScanFolderUris(context, folders)
+            tick++
+        }
+    }
 
+    SectionLabel("Music folders")
+    Text(
+        "Only selected folders are scanned. This keeps WhatsApp, notification, and recorder audio out of your music library.",
+        color = SubGrey,
+        fontSize = 13.sp,
+        modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+    )
+    folders.forEach { uri ->
+        val label = AppSettings.scanFolderPath(uri)?.trimEnd('/')?.substringAfterLast('/')?.ifBlank { "Storage root" }
+            ?: uri.substringAfterLast('/').ifBlank { "Selected folder" }
+        LinkRow(label, "Tap to remove from scan") {
+            folders = folders.filterNot { it == uri }
+            AppSettings.saveScanFolderUris(context, folders)
+            tick++
+        }
+    }
+    LinkRow("Add folder", "Choose a music folder using Android's secure folder picker") { folderPicker.launch(null) }
+    if (folders.isEmpty()) {
+        Text("No music folders selected. Add a folder, then tap Rescan.", color = SubGrey, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp))
+    }
     LinkRow("Rescan", "Songs: $songCount") { onRescan() }
     SliderRow(
         title = "Ignore Short Tracks (Notifications, etc.)",
@@ -308,9 +347,58 @@ private fun LibraryPage(songCount: Int, onRescan: () -> Unit) {
         minLines = 2,
     )
     LinkRow("Restore Defaults", null) {
-        AppSettings.restore(context, AppSettings.K_MIN_SECONDS, AppSettings.K_EXCLUDED_FOLDERS)
+        AppSettings.restore(context, AppSettings.K_MIN_SECONDS, AppSettings.K_EXCLUDED_FOLDERS, AppSettings.K_SCAN_FOLDERS)
         excluded = ""
+        folders = emptyList()
         tick++
+    }
+}
+
+@Composable
+private fun LockScreenPage(onChanged: () -> Unit) {
+    val context = LocalContext.current
+    var tick by remember { mutableIntStateOf(0) }
+    var controls by remember(tick) { mutableStateOf(AppSettings.lockScreenControls(context)) }
+    var artwork by remember(tick) { mutableStateOf(AppSettings.lockScreenArtwork(context)) }
+    var hideContent by remember(tick) { mutableStateOf(AppSettings.lockScreenHideContent(context)) }
+    val buttonLayouts = listOf("Previous · Play/Pause · Next", "Rewind · Play/Pause · Fast-forward", "Previous · Play/Pause · Next · Queue")
+
+    SectionLabel("Android media controls")
+    SwitchRow("Show controls on the lock screen", "Uses the Android media widget and notification controls", controls) {
+        controls = it
+        AppSettings.putBool(context, AppSettings.K_LOCKSCREEN_CONTROLS, it)
+        onChanged()
+    }
+    SwitchRow("Show album artwork", "Display artwork in the lock-screen media widget when supported", artwork) {
+        artwork = it
+        AppSettings.putBool(context, AppSettings.K_LOCKSCREEN_ARTWORK, it)
+        onChanged()
+    }
+    SwitchRow("Hide media details", "Hide title and artist in notification content when the device supports private lock-screen notifications", hideContent) {
+        hideContent = it
+        AppSettings.putBool(context, AppSettings.K_LOCKSCREEN_HIDE_CONTENT, it)
+        onChanged()
+    }
+    LinkRow("Lock-screen button layout", buttonLayouts[AppSettings.lockScreenButtons(context)]) {
+        AppSettings.putInt(context, AppSettings.K_LOCKSCREEN_BUTTONS, (AppSettings.lockScreenButtons(context) + 1) % buttonLayouts.size)
+        tick++
+        onChanged()
+    }
+    LinkRow("Android notification settings", "Open system controls for lock-screen visibility and sensitive content") {
+        context.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+            putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+        })
+    }
+    Text(
+        "Poweramp-style lock-screen playback is delivered through Android's MediaSession widget. The operating system may still control whether it appears and which center controls are available.",
+        color = SubGrey,
+        fontSize = 13.sp,
+        modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
+    )
+    LinkRow("Restore Defaults", null) {
+        AppSettings.restore(context, AppSettings.K_LOCKSCREEN_CONTROLS, AppSettings.K_LOCKSCREEN_ARTWORK, AppSettings.K_LOCKSCREEN_HIDE_CONTENT, AppSettings.K_LOCKSCREEN_BUTTONS)
+        tick++
+        onChanged()
     }
 }
 

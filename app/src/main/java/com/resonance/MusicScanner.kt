@@ -19,6 +19,13 @@ object MusicScanner {
     fun getSongs(context: Context): List<Song> {
         val songs = ArrayList<Song>()
         val excludedFolders = AppSettings.excludedFolders(context)
+        val selectedRoots = AppSettings.scanFolderUris(context)
+            .mapNotNull(AppSettings::scanFolderPath)
+            .map { it.trimEnd('/') }
+        // Unlike the old global scan, an empty selection intentionally means an empty library.
+        // The user must choose at least one Music Folder, preventing notification/WhatsApp audio
+        // from entering the library by accident.
+        if (selectedRoots.isEmpty()) return emptyList()
         val collection: Uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)
         } else {
@@ -71,6 +78,7 @@ object MusicScanner {
             while (c.moveToNext()) {
                 val id = c.getLong(idCol)
                 val path = text(c, dataCol) ?: ""
+                if (selectedRoots.none { path == it || path.startsWith("$it/") }) continue
                 if (excludedFolders.any { path == it || path.startsWith("$it/") }) continue
                 val artist = clean(text(c, artistCol), "Unknown artist")
                 val uri = ContentUris.withAppendedId(collection, id)
