@@ -117,14 +117,27 @@ private sealed interface PlaybackSource {
     data class RouteOrigin(val route: Route) : PlaybackSource
 }
 
-data class TagValues(val title: String, val artist: String, val album: String, val genre: String)
+data class TagValues(
+    val title: String,
+    val artist: String,
+    val album: String,
+    val genre: String,
+    val trackNumber: String = "",
+    val year: String = "",
+    val composer: String = "",
+    val albumArtist: String = "",
+)
 
 @Composable
 private fun TagEditorDialog(song: Song, onDismiss: () -> Unit, onSave: (TagValues) -> Unit) {
     var title by remember(song.id) { mutableStateOf(song.title) }
     var artist by remember(song.id) { mutableStateOf(song.artist) }
     var album by remember(song.id) { mutableStateOf(song.album) }
-    var genre by remember(song.id) { mutableStateOf("") }
+    var genre by remember(song.id) { mutableStateOf(song.genre) }
+    var trackNumber by remember(song.id) { mutableStateOf(song.trackNumber.takeIf { it > 0 }?.toString() ?: "") }
+    var year by remember(song.id) { mutableStateOf(song.year.takeIf { it > 0 }?.toString() ?: "") }
+    var composer by remember(song.id) { mutableStateOf(song.composer) }
+    var albumArtist by remember(song.id) { mutableStateOf(song.albumArtist) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Edit tags") },
@@ -134,9 +147,17 @@ private fun TagEditorDialog(song: Song, onDismiss: () -> Unit, onSave: (TagValue
                 TextField(artist, { artist = it }, label = { Text("Artist") }, singleLine = true)
                 TextField(album, { album = it }, label = { Text("Album") }, singleLine = true)
                 TextField(genre, { genre = it }, label = { Text("Genre") }, singleLine = true)
+                TextField(trackNumber, { trackNumber = it }, label = { Text("Track number") }, singleLine = true)
+                TextField(year, { year = it }, label = { Text("Year") }, singleLine = true)
+                TextField(composer, { composer = it }, label = { Text("Composer") }, singleLine = true)
+                TextField(albumArtist, { albumArtist = it }, label = { Text("Album artist") }, singleLine = true)
             }
         },
-        confirmButton = { TextButton(onClick = { onSave(TagValues(title, artist, album, genre)) }) { Text("Save") } },
+        confirmButton = {
+            TextButton(onClick = {
+                onSave(TagValues(title, artist, album, genre, trackNumber, year, composer, albumArtist))
+            }) { Text("Save") }
+        },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )
 }
@@ -193,7 +214,11 @@ fun ResonanceApp(remote: PlayerRemote) {
     ) { result ->
         val pending = pendingTagEdit
         if (result.resultCode == android.app.Activity.RESULT_OK && pending != null) {
-            TagEditor.update(context, pending.first, pending.second.title, pending.second.artist, pending.second.album, pending.second.genre)
+            TagEditor.update(
+                context, pending.first, pending.second.title, pending.second.artist, pending.second.album,
+                pending.second.genre, pending.second.trackNumber, pending.second.year,
+                pending.second.composer, pending.second.albumArtist,
+            )
             scanTick++
         }
         pendingTagEdit = null
@@ -696,7 +721,10 @@ fun ResonanceApp(remote: PlayerRemote) {
             onDismiss = { showTagEditor = false },
             onSave = { values ->
                 showTagEditor = false
-                if (!TagEditor.update(context, current, values.title, values.artist, values.album, values.genre)) {
+                if (!TagEditor.update(
+                        context, current, values.title, values.artist, values.album, values.genre,
+                        values.trackNumber, values.year, values.composer, values.albumArtist,
+                    )) {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                         pendingTagEdit = current to values
                         val request = MediaStore.createWriteRequest(context.contentResolver, listOf(current.uri))

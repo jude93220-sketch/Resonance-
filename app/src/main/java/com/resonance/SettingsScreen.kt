@@ -137,11 +137,35 @@ private fun OutputProfilesPage() {
         }
     }
     SectionLabel("Output profiles")
+    Text(
+        "${OutputDiagnostics.summary(context)}\nProfiles are applied automatically when the matching output is connected.",
+        color = SubGrey,
+        fontSize = 13.sp,
+        modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+    )
     listOf("speaker" to "Phone speaker", "wired" to "Wired headphones", "bluetooth" to "Bluetooth", "usb" to "USB DAC").forEach { (key, label) ->
         val profile = remember(tick, key) { OutputProfileStore.profile(context, key) }
-        LinkRow(label, if (profile.autoEqName.isBlank()) "No AutoEQ preset" else profile.autoEqName) {
+        LinkRow(
+            label,
+            "${profile.eqPreset}${if (profile.autoEqName.isBlank()) "" else " · ${profile.autoEqName}"}",
+        ) {
             importTarget = key
             importer.launch(arrayOf("text/plain", "text/*"))
+        }
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            TextButton(onClick = {
+                val currentIndex = EqStore.BUILTIN.indexOfFirst { it.name == profile.eqPreset }.coerceAtLeast(0)
+                val preset = EqStore.BUILTIN[(currentIndex + 1) % EqStore.BUILTIN.size]
+                OutputProfileStore.save(context, profile.copy(eqPreset = preset.name, gains = preset.gains, preampDb = preset.preamp))
+                tick++
+            }) { Text("Preset: ${profile.eqPreset}") }
+            TextButton(onClick = {
+                OutputProfileStore.save(context, OutputProfile(key, label))
+                tick++
+            }) { Text("Reset") }
         }
     }
     TextButton(onClick = {

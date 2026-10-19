@@ -7,7 +7,7 @@ This is the implementation tracker for Resonance. Features that depend on a phon
 - [ ] Replace Android-only effects with a dedicated DSP abstraction.
 - [ ] Graphic EQ: 10/15/24/32/64-band profiles.
 - [ ] Parametric EQ: filter type, frequency, Q, gain, and band management.
-- [ ] Per-output profiles: speaker, wired, Bluetooth, USB DAC, Android Auto, Cast.
+- [x] Per-output profiles: speaker, wired, Bluetooth, USB DAC, Android Auto, Cast.
 - [ ] AutoEQ preset import and headphone profile storage.
 - [ ] ReplayGain track/album parsing and normalization.
 - [ ] True two-deck overlapping crossfade.
@@ -21,7 +21,7 @@ This is the implementation tracker for Resonance. Features that depend on a phon
 
 - [ ] User-selected scan folders and exclusions through Storage Access Framework.
 - [ ] Smart playlists and richer sorting/filtering rules.
-- [ ] Tag editor with safe write-back and permission handling.
+- [x] Tag editor with safe write-back and permission handling.
 - [ ] Synchronized/plain lyrics and LRC timing.
 - [ ] Lyrics search integration.
 - [ ] Embedded and standalone CUE sheets.
